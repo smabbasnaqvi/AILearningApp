@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "AILearningApp",
+    "name": "AI Study Companion",
     "slug": "ailearningapp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -23,7 +23,8 @@
       "package": "com.ailearningapp.mobile"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-font"
