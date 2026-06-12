@@ -1,192 +1,217 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
-import type { StackScreenProps } from '@react-navigation/stack';
-import type { PracticeStackParamList } from '../../navigation/types';
+import type { PracticeStackScreenProps } from '../../navigation/types';
 import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-type Props = StackScreenProps<PracticeStackParamList, 'Quiz'>;
+type Props = PracticeStackScreenProps<'Quiz'>;
 
 interface QuizQuestion {
   id: string;
   subject: string;
-  question: string;
+  text: string;
   options: string[];
   correctIndex: number;
-  hint: string;
+  explanation: string;
 }
 
-// TODO: replace with real questions from API
-const MOCK_QUESTIONS: QuizQuestion[] = [
+const QUIZ_QUESTIONS: QuizQuestion[] = [
   {
-    id: 'q1', subject: 'Math',
-    question: 'Solve: 2x² - 8 = 0',
-    options: ['x = ±2', 'x = ±4', 'x = 2', 'x = 4'],
+    id: 'q1',
+    subject: 'Math',
+    text: 'What is the value of x if 2x² - 8 = 0?',
+    options: ['x = 2 only', 'x = ±2', 'x = 4', 'x = ±4'],
+    correctIndex: 1,
+    explanation: 'Solving: 2x² = 8, x² = 4, x = ±2.',
+  },
+  {
+    id: 'q2',
+    subject: 'Reading',
+    text: 'The word "ambiguous" most closely means:',
+    options: ['Clearly defined', 'Open to multiple interpretations', 'Extremely large', 'Rarely occurring'],
+    correctIndex: 1,
+    explanation: 'Ambiguous means open to more than one interpretation; not having one obvious meaning.',
+  },
+  {
+    id: 'q3',
+    subject: 'Science',
+    text: 'Which law states that energy cannot be created or destroyed?',
+    options: ['Newton\'s First Law', 'Law of Conservation of Momentum', 'First Law of Thermodynamics', 'Boyle\'s Law'],
+    correctIndex: 2,
+    explanation: 'The First Law of Thermodynamics states that energy cannot be created or destroyed, only converted.',
+  },
+  {
+    id: 'q4',
+    subject: 'Writing',
+    text: 'Choose the correctly punctuated sentence:',
+    options: [
+      'The students, who studied hard passed the exam.',
+      'The students who studied hard, passed the exam.',
+      'The students who studied hard passed the exam.',
+      'The students, who studied hard, passed the exam.',
+    ],
+    correctIndex: 2,
+    explanation: '"Who studied hard" is a restrictive clause that identifies which students — no commas needed.',
+  },
+  {
+    id: 'q5',
+    subject: 'Math',
+    text: 'A rectangle has a perimeter of 36 cm and a length of 10 cm. What is its area?',
+    options: ['80 cm²', '72 cm²', '160 cm²', '36 cm²'],
     correctIndex: 0,
-    hint: 'Divide both sides by 2 first, then take the square root.',
-  },
-  {
-    id: 'q2', subject: 'Reading',
-    question: 'What does "ubiquitous" mean?',
-    options: ['Rare', 'Present everywhere', 'Ancient', 'Mysterious'],
-    correctIndex: 1,
-    hint: 'Think of the word "everywhere" — this word describes something very commonly found.',
-  },
-  {
-    id: 'q3', subject: 'Writing',
-    question: 'Which sentence uses the correct verb form?\n"The committee _____ agreed."',
-    options: ['have', 'has', 'had had', 'are'],
-    correctIndex: 1,
-    hint: '"Committee" is a collective noun treated as singular in American English.',
-  },
-  {
-    id: 'q4', subject: 'Math',
-    question: 'If f(x) = 3x + 2, what is f(4)?',
-    options: ['10', '12', '14', '16'],
-    correctIndex: 2,
-    hint: 'Substitute x = 4 into the function and simplify.',
-  },
-  {
-    id: 'q5', subject: 'Science',
-    question: 'What type of bond holds water molecules together?',
-    options: ['Covalent', 'Ionic', 'Hydrogen', 'Metallic'],
-    correctIndex: 2,
-    hint: 'Water molecules are attracted to each other through a special intermolecular bond named after an element.',
+    explanation: 'Width = (36/2) - 10 = 18 - 10 = 8 cm. Area = 10 × 8 = 80 cm².',
   },
 ];
 
-export function QuizScreen({ navigation }: Props): React.JSX.Element {
+const TIME_PER_QUESTION = 30;
+
+export function QuizScreen({ navigation, route }: Props): React.JSX.Element {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [showHint, setShowHint] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [answers, setAnswers] = useState<(number | null)[]>(
+    new Array(QUIZ_QUESTIONS.length).fill(null)
+  );
+  const [timeLeft, setTimeLeft] = useState(TIME_PER_QUESTION);
 
-  const question = MOCK_QUESTIONS[currentIndex];
-  const total = MOCK_QUESTIONS.length;
-  const isLast = currentIndex === total - 1;
-  const progress = (currentIndex + 1) / total;
+  const currentQuestion = QUIZ_QUESTIONS[currentIndex];
+  const isLast = currentIndex === QUIZ_QUESTIONS.length - 1;
 
-  function handleSubmit() {
-    if (selectedOption === null) return;
-    setSubmitted(true);
-    if (selectedOption === question.correctIndex) {
-      setCorrectAnswers((c) => c + 1);
-    }
-  }
+  const handleNext = useCallback(() => {
+    const newAnswers = [...answers];
+    newAnswers[currentIndex] = selectedOption;
+    setAnswers(newAnswers);
 
-  function handleNext() {
     if (isLast) {
-      const finalCorrect = submitted && selectedOption === question.correctIndex
-        ? correctAnswers
-        : correctAnswers;
-      navigation.navigate('QuizResults', {
-        score: finalCorrect,
-        total,
-        xpEarned: finalCorrect * 15,
+      const score = newAnswers.filter(
+        (ans, i) => ans === QUIZ_QUESTIONS[i].correctIndex
+      ).length;
+      navigation.replace('QuizResults', {
+        score,
+        total: QUIZ_QUESTIONS.length,
+        xpEarned: score * 10,
       });
-      return;
+    } else {
+      setCurrentIndex(currentIndex + 1);
+      setSelectedOption(null);
+      setShowFeedback(false);
+      setTimeLeft(TIME_PER_QUESTION);
     }
-    setCurrentIndex((i) => i + 1);
-    setSelectedOption(null);
-    setSubmitted(false);
-    setShowHint(false);
+  }, [answers, currentIndex, isLast, navigation, selectedOption]);
+
+  useEffect(() => {
+    if (showFeedback) return;
+    if (timeLeft <= 0) {
+      setShowFeedback(true);
+      const t = setTimeout(handleNext, 1500);
+      return () => clearTimeout(t);
+    }
+    const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, showFeedback, handleNext]);
+
+  function handleOptionSelect(index: number): void {
+    if (showFeedback) return;
+    setSelectedOption(index);
+    setShowFeedback(true);
   }
 
-  function getOptionStyle(idx: number) {
-    if (!submitted) {
-      return selectedOption === idx ? styles.optionSelected : styles.option;
+  function getOptionStyle(index: number) {
+    if (!showFeedback) {
+      return index === selectedOption ? styles.optionSelected : styles.option;
     }
-    if (idx === question.correctIndex) return styles.optionCorrect;
-    if (idx === selectedOption) return styles.optionWrong;
+    if (index === currentQuestion.correctIndex) return styles.optionCorrect;
+    if (index === selectedOption && index !== currentQuestion.correctIndex) return styles.optionWrong;
     return styles.option;
   }
 
-  function getOptionTextStyle(idx: number) {
-    if (!submitted) {
-      return selectedOption === idx ? styles.optionTextSelected : styles.optionText;
+  function getOptionTextStyle(index: number) {
+    if (!showFeedback) {
+      return index === selectedOption ? styles.optionTextSelected : styles.optionText;
     }
-    if (idx === question.correctIndex) return styles.optionTextCorrect;
-    if (idx === selectedOption) return styles.optionTextWrong;
+    if (index === currentQuestion.correctIndex) return styles.optionTextCorrect;
+    if (index === selectedOption && index !== currentQuestion.correctIndex) return styles.optionTextWrong;
     return styles.optionText;
   }
 
+  const timerColor = timeLeft <= 10 ? colors.error : colors.primary;
+  const progressPct = ((currentIndex) / QUIZ_QUESTIONS.length) * 100;
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+      <View style={styles.topBar}>
+        <View style={styles.counterBadge}>
+          <Text style={styles.counterText}>{currentIndex + 1}/{QUIZ_QUESTIONS.length}</Text>
         </View>
-        <View style={styles.headerMeta}>
-          <Text style={styles.questionCount}>{currentIndex + 1} / {total}</Text>
-          <TouchableOpacity
-            style={styles.hintBtn}
-            onPress={() => setShowHint((v) => !v)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.hintBtnText}>{showHint ? '🙈 Hide Hint' : '💡 Hint'}</Text>
-          </TouchableOpacity>
+        <View style={styles.timerRow}>
+          <View style={styles.timerBarBg}>
+            <View
+              style={[
+                styles.timerBarFill,
+                {
+                  width: `${(timeLeft / TIME_PER_QUESTION) * 100}%`,
+                  backgroundColor: timerColor,
+                },
+              ]}
+            />
+          </View>
+          <Text style={[styles.timerText, { color: timerColor }]}>{timeLeft}s</Text>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.subjectBadge}>
-          <Text style={styles.subjectText}>{question.subject}</Text>
+          <Text style={styles.subjectBadgeText}>{currentQuestion.subject}</Text>
         </View>
 
-        <Text style={styles.questionText}>{question.question}</Text>
+        <Text style={styles.questionText}>{currentQuestion.text}</Text>
 
-        {showHint && (
-          <View style={styles.hintCard}>
-            <Text style={styles.hintLabel}>💡 Hint</Text>
-            <Text style={styles.hintText}>{question.hint}</Text>
-          </View>
-        )}
-
-        <View style={styles.options}>
-          {question.options.map((option, idx) => (
+        <View style={styles.optionsContainer}>
+          {currentQuestion.options.map((option, index) => (
             <TouchableOpacity
-              key={idx}
-              style={getOptionStyle(idx)}
-              onPress={() => !submitted && setSelectedOption(idx)}
-              activeOpacity={submitted ? 1 : 0.8}
+              key={index}
+              style={getOptionStyle(index)}
+              onPress={() => handleOptionSelect(index)}
+              disabled={showFeedback}
+              activeOpacity={0.8}
             >
-              <View style={styles.optionLetterContainer}>
-                <Text style={styles.optionLetter}>{String.fromCharCode(65 + idx)}</Text>
+              <View style={styles.optionLetterBubble}>
+                <Text style={styles.optionLetterText}>{String.fromCharCode(65 + index)}</Text>
               </View>
-              <Text style={getOptionTextStyle(idx)}>{option}</Text>
-              {submitted && idx === question.correctIndex && (
-                <Text style={styles.correctIcon}>✓</Text>
-              )}
-              {submitted && idx === selectedOption && idx !== question.correctIndex && (
-                <Text style={styles.wrongIcon}>✗</Text>
-              )}
+              <Text style={getOptionTextStyle(index)}>{option}</Text>
             </TouchableOpacity>
           ))}
         </View>
+
+        {showFeedback && (
+          <View style={styles.explanationCard}>
+            <Text style={styles.explanationTitle}>
+              {selectedOption === currentQuestion.correctIndex ? '✓ Correct!' : '✗ Incorrect'}
+            </Text>
+            <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
+          </View>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
-        {!submitted ? (
-          <TouchableOpacity
-            style={[styles.actionBtn, selectedOption === null && styles.actionBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={selectedOption === null}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.actionBtnText}>Submit</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.actionBtn} onPress={handleNext} activeOpacity={0.85}>
-            <Text style={styles.actionBtnText}>{isLast ? 'See Results' : 'Next →'}</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.nextButton, !showFeedback && styles.nextButtonDisabled]}
+          onPress={handleNext}
+          disabled={!showFeedback}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.nextButtonText}>{isLast ? 'See Results' : 'Next →'}</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -197,88 +222,88 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
-  header: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  counterBadge: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  counterText: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
+    fontWeight: typography.fontWeightMedium,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
-  progressBar: {
+  timerBarBg: {
+    width: 80,
     height: 6,
     backgroundColor: colors.border,
     borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  timerBarFill: {
+    height: '100%',
+    borderRadius: borderRadius.full,
+  },
+  timerText: {
+    fontSize: typography.fontSizeSm,
+    fontWeight: typography.fontWeightBold,
+    minWidth: 28,
+  },
+  progressBar: {
+    height: 3,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.xl,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
   },
-  headerMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  questionCount: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-  },
-  hintBtn: {
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  hintBtnText: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeightMedium,
-  },
-  body: {
+  scrollContent: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxxl,
   },
   subjectBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.primary + '20',
+    borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.primary,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
   },
-  subjectText: {
-    fontSize: typography.fontSizeSm,
+  subjectBadgeText: {
+    fontSize: typography.fontSizeXs,
     color: colors.primary,
     fontWeight: typography.fontWeightSemiBold,
   },
   questionText: {
-    fontSize: typography.fontSizeXl,
+    fontSize: typography.fontSizeLg,
     fontWeight: typography.fontWeightSemiBold,
     color: colors.textPrimary,
-    lineHeight: 28,
-    marginBottom: spacing.lg,
+    lineHeight: typography.lineHeightLg,
+    marginBottom: spacing.xxl,
   },
-  hintCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.warning,
-    marginBottom: spacing.lg,
-  },
-  hintLabel: {
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
-    color: colors.warning,
-    marginBottom: 4,
-  },
-  hintText: {
-    fontSize: typography.fontSizeMd,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  options: {
+  optionsContainer: {
     gap: spacing.md,
   },
   option: {
@@ -294,7 +319,7 @@ const styles = StyleSheet.create({
   optionSelected: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.primary + '15',
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     borderWidth: 1.5,
@@ -321,15 +346,15 @@ const styles = StyleSheet.create({
     borderColor: colors.error,
     gap: spacing.md,
   },
-  optionLetterContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.border,
+  optionLetterBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  optionLetter: {
+  optionLetterText: {
     fontSize: typography.fontSizeSm,
     fontWeight: typography.fontWeightBold,
     color: colors.textSecondary,
@@ -338,52 +363,65 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: typography.fontSizeMd,
     color: colors.textSecondary,
+    lineHeight: typography.lineHeightMd,
   },
   optionTextSelected: {
     flex: 1,
     fontSize: typography.fontSizeMd,
-    color: colors.textPrimary,
+    color: colors.primary,
     fontWeight: typography.fontWeightMedium,
+    lineHeight: typography.lineHeightMd,
   },
   optionTextCorrect: {
     flex: 1,
     fontSize: typography.fontSizeMd,
     color: colors.success,
-    fontWeight: typography.fontWeightSemiBold,
+    fontWeight: typography.fontWeightMedium,
+    lineHeight: typography.lineHeightMd,
   },
   optionTextWrong: {
     flex: 1,
     fontSize: typography.fontSizeMd,
     color: colors.error,
     fontWeight: typography.fontWeightMedium,
+    lineHeight: typography.lineHeightMd,
   },
-  correctIcon: {
-    fontSize: 16,
-    color: colors.success,
-    fontWeight: typography.fontWeightBold,
+  explanationCard: {
+    marginTop: spacing.xl,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  wrongIcon: {
-    fontSize: 16,
-    color: colors.error,
+  explanationTitle: {
+    fontSize: typography.fontSizeMd,
     fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  explanationText: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
+    lineHeight: typography.lineHeightMd,
   },
   footer: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
-    paddingTop: spacing.md,
+    paddingVertical: spacing.xl,
+    backgroundColor: colors.backgroundDark,
   },
-  actionBtn: {
+  nextButton: {
     backgroundColor: colors.primary,
-    paddingVertical: spacing.lg,
     borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xl,
     alignItems: 'center',
   },
-  actionBtnDisabled: {
+  nextButtonDisabled: {
     backgroundColor: colors.border,
   },
-  actionBtnText: {
-    color: colors.textPrimary,
+  nextButtonText: {
     fontSize: typography.fontSizeLg,
     fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
   },
 });

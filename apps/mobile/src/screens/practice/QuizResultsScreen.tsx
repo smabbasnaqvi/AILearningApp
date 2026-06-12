@@ -4,102 +4,107 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import type { StackScreenProps } from '@react-navigation/stack';
-import type { PracticeStackParamList } from '../../navigation/types';
+import type { PracticeStackScreenProps } from '../../navigation/types';
 import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-type Props = StackScreenProps<PracticeStackParamList, 'QuizResults'>;
+type Props = PracticeStackScreenProps<'QuizResults'>;
+
+function getPerformance(score: number, total: number): { label: string; emoji: string; color: string; message: string } {
+  const pct = score / total;
+  if (pct >= 0.8) return { label: 'Excellent!', emoji: '🏆', color: colors.success, message: 'Outstanding performance! Keep up the great work.' };
+  if (pct >= 0.6) return { label: 'Good Job!', emoji: '⭐', color: colors.primary, message: 'Solid effort! Review the questions you missed.' };
+  if (pct >= 0.4) return { label: 'Keep Going!', emoji: '📈', color: colors.warning, message: 'You\'re making progress. More practice will help.' };
+  return { label: 'Keep Practicing', emoji: '💪', color: colors.secondary, message: 'Don\'t give up! Review the material and try again.' };
+}
 
 export function QuizResultsScreen({ navigation, route }: Props): React.JSX.Element {
   const { score, total, xpEarned } = route.params;
-  const accuracy = Math.round((score / total) * 100);
-
-  const grade =
-    accuracy >= 90 ? { label: 'Excellent!', emoji: '🏆', color: colors.success } :
-    accuracy >= 70 ? { label: 'Good Job!', emoji: '🎉', color: colors.primary } :
-    accuracy >= 50 ? { label: 'Keep Going!', emoji: '💪', color: colors.warning } :
-    { label: 'Need Practice', emoji: '📚', color: colors.error };
-
-  // TODO: replace with real per-topic breakdown from quiz data
-  const topicBreakdown = [
-    { topic: 'Math', correct: Math.floor(score * 0.4), total: Math.ceil(total * 0.4) },
-    { topic: 'Reading', correct: Math.floor(score * 0.3), total: Math.ceil(total * 0.3) },
-    { topic: 'Writing', correct: Math.floor(score * 0.3), total: Math.floor(total * 0.3) },
-  ];
+  const incorrect = total - score;
+  const percentage = Math.round((score / total) * 100);
+  const correctPct = (score / total) * 100;
+  const perf = getPerformance(score, total);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Score hero */}
-        <LinearGradient
-          colors={[colors.surface, colors.backgroundDark]}
-          style={styles.hero}
-        >
-          <Text style={styles.gradeEmoji}>{grade.emoji}</Text>
-          <Text style={[styles.gradeLabel, { color: grade.color }]}>{grade.label}</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.pageTitle}>Quiz Results</Text>
 
-          <View style={styles.scoreCircle}>
-            <Text style={[styles.scorePct, { color: grade.color }]}>{accuracy}%</Text>
-            <Text style={styles.scoreSubtitle}>Accuracy</Text>
+        {/* Score Circle */}
+        <View style={styles.scoreSection}>
+          <View style={[styles.scoreCircle, { borderColor: perf.color }]}>
+            <Text style={styles.scoreEmoji}>{perf.emoji}</Text>
+            <Text style={[styles.scoreNumber, { color: perf.color }]}>{score}/{total}</Text>
+            <Text style={styles.scorePct}>{percentage}%</Text>
           </View>
 
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{score}</Text>
-              <Text style={styles.statLabel}>Correct</Text>
+          <View style={[styles.perfBadge, { backgroundColor: perf.color + '20', borderColor: perf.color }]}>
+            <Text style={[styles.perfLabel, { color: perf.color }]}>{perf.label}</Text>
+          </View>
+
+          <Text style={styles.perfMessage}>{perf.message}</Text>
+        </View>
+
+        {/* XP Earned */}
+        <View style={styles.xpCard}>
+          <Text style={styles.xpAmount}>+{xpEarned} XP ⚡</Text>
+          <Text style={styles.xpLabel}>Experience Points Earned</Text>
+        </View>
+
+        {/* Breakdown */}
+        <View style={styles.breakdownCard}>
+          <Text style={styles.breakdownTitle}>Breakdown</Text>
+
+          <View style={styles.breakdownBar}>
+            <View
+              style={[
+                styles.breakdownBarCorrect,
+                { flex: score > 0 ? score : 0.01 },
+              ]}
+            />
+            <View
+              style={[
+                styles.breakdownBarIncorrect,
+                { flex: incorrect > 0 ? incorrect : 0.01 },
+              ]}
+            />
+          </View>
+
+          <View style={styles.breakdownLegend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
+              <Text style={styles.legendText}>Correct: {score}</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{total - score}</Text>
-              <Text style={styles.statLabel}>Wrong</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={[styles.statValue, styles.xpValue]}>+{xpEarned}</Text>
-              <Text style={styles.statLabel}>XP earned</Text>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.error }]} />
+              <Text style={styles.legendText}>Incorrect: {incorrect}</Text>
             </View>
           </View>
-        </LinearGradient>
 
-        {/* Topic breakdown */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Topic Breakdown</Text>
-          {topicBreakdown.map((t) => {
-            const pct = t.total > 0 ? Math.round((t.correct / t.total) * 100) : 0;
-            const barColor = pct >= 70 ? colors.success : pct >= 40 ? colors.warning : colors.error;
-            return (
-              <View key={t.topic} style={styles.topicRow}>
-                <Text style={styles.topicName}>{t.topic}</Text>
-                <View style={styles.topicBarTrack}>
-                  <View style={[styles.topicBarFill, { width: `${pct}%`, backgroundColor: barColor }]} />
-                </View>
-                <Text style={[styles.topicPct, { color: barColor }]}>
-                  {t.correct}/{t.total}
-                </Text>
-              </View>
-            );
-          })}
+          <View style={styles.accuracySection}>
+            <Text style={styles.accuracyLabel}>Accuracy</Text>
+            <Text style={[styles.accuracyValue, { color: perf.color }]}>{percentage}%</Text>
+          </View>
         </View>
 
         {/* Actions */}
-        <View style={styles.actions}>
+        <View style={styles.actionsSection}>
           <TouchableOpacity
-            style={styles.reviewBtn}
-            onPress={() => navigation.navigate('Quiz', { title: 'Review Wrong Answers' })}
+            style={styles.primaryButton}
+            onPress={() => navigation.replace('Quiz', { title: 'Practice Quiz' })}
             activeOpacity={0.85}
           >
-            <Text style={styles.reviewBtnText}>Review Wrong Answers</Text>
+            <Text style={styles.primaryButtonText}>Practice Again</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={styles.doneBtn}
-            onPress={() => navigation.navigate('PracticeHub')}
+            style={styles.secondaryButton}
+            onPress={() => navigation.popToTop()}
             activeOpacity={0.85}
           >
-            <Text style={styles.doneBtnText}>Done</Text>
+            <Text style={styles.secondaryButtonText}>Back to Practice Hub</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -112,135 +117,174 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
-  hero: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxxl,
+  scrollContent: {
     paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.massive,
+    alignItems: 'center',
   },
-  gradeEmoji: {
-    fontSize: 56,
-    marginBottom: spacing.sm,
-  },
-  gradeLabel: {
+  pageTitle: {
     fontSize: typography.fontSize2xl,
     fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
     marginBottom: spacing.xxl,
+    alignSelf: 'flex-start',
+  },
+  scoreSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    width: '100%',
   },
   scoreCircle: {
     width: 140,
     height: 140,
-    borderRadius: 70,
-    backgroundColor: colors.surface,
-    borderWidth: 4,
-    borderColor: colors.primary,
+    borderRadius: borderRadius.full,
+    borderWidth: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.xxl,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.xl,
   },
-  scorePct: {
-    fontSize: typography.fontSize4xl,
+  scoreEmoji: {
+    fontSize: 30,
+    marginBottom: spacing.xs,
+  },
+  scoreNumber: {
+    fontSize: typography.fontSize2xl,
     fontWeight: typography.fontWeightExtraBold,
   },
-  scoreSubtitle: {
+  scorePct: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textMuted,
+  },
+  perfBadge: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    borderWidth: 1.5,
+    marginBottom: spacing.md,
+  },
+  perfLabel: {
+    fontSize: typography.fontSizeLg,
+    fontWeight: typography.fontWeightBold,
+  },
+  perfMessage: {
+    fontSize: typography.fontSizeMd,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: typography.lineHeightLg,
+    paddingHorizontal: spacing.md,
+  },
+  xpCard: {
+    backgroundColor: colors.primary + '15',
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+    width: '100%',
+  },
+  xpAmount: {
+    fontSize: typography.fontSize2xl,
+    fontWeight: typography.fontWeightExtraBold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  xpLabel: {
     fontSize: typography.fontSizeSm,
     color: colors.textSecondary,
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  breakdownCard: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xxl,
-    gap: spacing.xxl,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    width: '100%',
   },
-  statBox: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: typography.fontSize2xl,
-    fontWeight: typography.fontWeightBold,
-    color: colors.textPrimary,
-  },
-  xpValue: {
-    color: colors.primary,
-  },
-  statLabel: {
-    fontSize: typography.fontSizeXs,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: colors.border,
-  },
-  section: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.lg,
-  },
-  sectionTitle: {
+  breakdownTitle: {
     fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightSemiBold,
+    fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
     marginBottom: spacing.lg,
   },
-  topicRow: {
+  breakdownBar: {
+    flexDirection: 'row',
+    height: 16,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+  },
+  breakdownBarCorrect: {
+    backgroundColor: colors.success,
+  },
+  breakdownBarIncorrect: {
+    backgroundColor: colors.error,
+  },
+  breakdownLegend: {
+    flexDirection: 'row',
+    gap: spacing.xl,
+    marginBottom: spacing.xl,
+  },
+  legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.md,
   },
-  topicName: {
-    width: 70,
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: borderRadius.full,
+  },
+  legendText: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
+  },
+  accuracySection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  accuracyLabel: {
     fontSize: typography.fontSizeMd,
-    color: colors.textPrimary,
+    color: colors.textSecondary,
     fontWeight: typography.fontWeightMedium,
   },
-  topicBarTrack: {
-    flex: 1,
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: borderRadius.full,
+  accuracyValue: {
+    fontSize: typography.fontSize2xl,
+    fontWeight: typography.fontWeightExtraBold,
   },
-  topicBarFill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
-  },
-  topicPct: {
-    width: 40,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
-    textAlign: 'right',
-  },
-  actions: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.huge,
+  actionsSection: {
+    width: '100%',
     gap: spacing.md,
   },
-  reviewBtn: {
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-  },
-  reviewBtnText: {
-    color: colors.primary,
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
-  },
-  doneBtn: {
+  primaryButton: {
     backgroundColor: colors.primary,
-    paddingVertical: spacing.lg,
     borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xl,
     alignItems: 'center',
   },
-  doneBtnText: {
-    color: colors.textPrimary,
+  primaryButtonText: {
     fontSize: typography.fontSizeLg,
     fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  secondaryButton: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryButtonText: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightSemiBold,
+    color: colors.textSecondary,
   },
 });

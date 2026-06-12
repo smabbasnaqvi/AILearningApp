@@ -1,139 +1,173 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Animated,
+  Dimensions,
 } from 'react-native';
-import type { StackScreenProps } from '@react-navigation/stack';
-import type { PracticeStackParamList } from '../../navigation/types';
-import { colors, typography, spacing, borderRadius, shadows } from '../../constants/theme';
+import type { PracticeStackScreenProps } from '../../navigation/types';
+import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-type Props = StackScreenProps<PracticeStackParamList, 'Flashcard'>;
+type Props = PracticeStackScreenProps<'Flashcard'>;
 
-interface Flashcard {
+interface FlashcardData {
   id: string;
   front: string;
   back: string;
-  subject: string;
 }
 
-// TODO: replace with real flashcards from API (/srs/due-cards)
-const MOCK_FLASHCARDS: Flashcard[] = [
-  { id: 'f1', front: 'What is the quadratic formula?', back: 'x = (-b ± √(b²-4ac)) / 2a', subject: 'Math' },
-  { id: 'f2', front: 'Define "protagonist"', back: 'The main character in a story, who the narrative follows and whose journey drives the plot.', subject: 'Reading' },
-  { id: 'f3', front: 'What is a metaphor?', back: 'A figure of speech that directly compares two unlike things without using "like" or "as".', subject: 'Writing' },
-  { id: 'f4', front: 'What is mitosis?', back: 'Cell division that produces two genetically identical daughter cells, each with the same chromosome count as the parent.', subject: 'Science' },
-  { id: 'f5', front: 'State the Pythagorean theorem', back: 'In a right triangle: a² + b² = c², where c is the hypotenuse.', subject: 'Math' },
+const MOCK_FLASHCARDS: FlashcardData[] = [
+  { id: '1', front: 'What is the quadratic formula?', back: 'x = (-b ± √(b²-4ac)) / 2a\n\nUsed to solve ax² + bx + c = 0' },
+  { id: '2', front: 'Define: Ephemeral', back: 'Lasting for a very short time; transitory.\n\nExample: "The ephemeral beauty of cherry blossoms"' },
+  { id: '3', front: 'What is Newton\'s Second Law of Motion?', back: 'F = ma\n\nForce equals mass times acceleration. The net force on an object equals its mass multiplied by its acceleration.' },
+  { id: '4', front: 'What is the difference between "affect" and "effect"?', back: '"Affect" is usually a verb meaning to influence.\n"Effect" is usually a noun meaning the result.\n\nExample: The rain affected our plans. The effect was a cancelled picnic.' },
+  { id: '5', front: 'What is photosynthesis?', back: '6CO₂ + 6H₂O + light → C₆H₁₂O₆ + 6O₂\n\nThe process by which plants convert light energy into chemical energy (glucose), releasing oxygen as a byproduct.' },
 ];
+
+const RATING_BUTTONS = [
+  { label: 'Again', grade: 0, color: colors.error },
+  { label: 'Hard', grade: 2, color: colors.warning },
+  { label: 'Good', grade: 4, color: colors.success },
+  { label: 'Easy', grade: 5, color: colors.primary },
+];
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function FlashcardScreen({ navigation }: Props): React.JSX.Element {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-  const [knownCount, setKnownCount] = useState(0);
-  const [dontKnowCount, setDontKnowCount] = useState(0);
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [completed, setCompleted] = useState(false);
 
-  const card = MOCK_FLASHCARDS[currentIndex];
-  const total = MOCK_FLASHCARDS.length;
-  const progress = (currentIndex + 1) / total;
-  const isLast = currentIndex === total - 1;
+  const cards = MOCK_FLASHCARDS;
+  const currentCard = cards[currentIndex];
 
-  function flipCard() {
-    Animated.spring(flipAnim, {
-      toValue: flipped ? 0 : 1,
-      useNativeDriver: true,
-      tension: 60,
-      friction: 8,
-    }).start();
-    setFlipped((v) => !v);
+  function handleFlip(): void {
+    if (!isFlipped) setIsFlipped(true);
   }
 
-  function handleAnswer(knew: boolean) {
-    if (knew) setKnownCount((c) => c + 1);
-    else setDontKnowCount((c) => c + 1);
+  function handleRate(grade: number): void {
+    if (!currentCard) return;
+    setRatings((prev) => ({ ...prev, [currentCard.id]: grade }));
 
-    // TODO: call POST /srs/review with grade
-
-    if (isLast) {
-      navigation.navigate('QuizResults', {
-        score: knew ? knownCount + 1 : knownCount,
-        total,
-        xpEarned: (knew ? knownCount + 1 : knownCount) * 10,
-      });
-      return;
+    if (currentIndex >= cards.length - 1) {
+      setCompleted(true);
+    } else {
+      setCurrentIndex(currentIndex + 1);
+      setIsFlipped(false);
     }
-
-    flipAnim.setValue(0);
-    setFlipped(false);
-    setCurrentIndex((i) => i + 1);
   }
 
-  const frontInterpolate = flipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-  const backInterpolate = flipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['180deg', '360deg'],
-  });
+  if (completed) {
+    const goodCount = Object.values(ratings).filter((g) => g >= 3).length;
+    const againCount = Object.values(ratings).filter((g) => g < 3).length;
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.completionContainer}>
+          <Text style={styles.completionEmoji}>🎉</Text>
+          <Text style={styles.completionTitle}>Session Complete!</Text>
+          <Text style={styles.completionSubtitle}>You reviewed {cards.length} cards</Text>
+
+          <View style={styles.completionStats}>
+            <View style={styles.completionStat}>
+              <Text style={[styles.completionStatValue, { color: colors.success }]}>{goodCount}</Text>
+              <Text style={styles.completionStatLabel}>Good / Easy</Text>
+            </View>
+            <View style={styles.completionStatDivider} />
+            <View style={styles.completionStat}>
+              <Text style={[styles.completionStatValue, { color: colors.error }]}>{againCount}</Text>
+              <Text style={styles.completionStatLabel}>Again / Hard</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.completionButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.completionButtonText}>Back to Practice</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.completionSecondaryButton}
+            onPress={() => {
+              setCurrentIndex(0);
+              setIsFlipped(false);
+              setRatings({});
+              setCompleted(false);
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.completionSecondaryButtonText}>Review Again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!currentCard) return <SafeAreaView style={styles.container} />;
+
+  const progress = ((currentIndex) / cards.length) * 100;
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          <View style={[styles.progressFill, { width: `${progress}%` }]} />
         </View>
-        <View style={styles.statsRow}>
-          <Text style={styles.statGreen}>✓ {knownCount}</Text>
-          <Text style={styles.cardCount}>{currentIndex + 1} / {total}</Text>
-          <Text style={styles.statRed}>✗ {dontKnowCount}</Text>
-        </View>
+        <Text style={styles.progressText}>{currentIndex + 1} / {cards.length}</Text>
       </View>
 
-      <View style={styles.subjectBadgeRow}>
-        <View style={styles.subjectBadge}>
-          <Text style={styles.subjectText}>{card.subject}</Text>
-        </View>
-        {!flipped && <Text style={styles.tapHint}>Tap to reveal answer</Text>}
+      <View style={styles.cardArea}>
+        <TouchableOpacity
+          style={[styles.flashcard, isFlipped && styles.flashcardFlipped]}
+          onPress={handleFlip}
+          activeOpacity={0.95}
+        >
+          <View style={styles.cardLabelRow}>
+            <View style={[styles.cardLabel, isFlipped && styles.cardLabelBack]}>
+              <Text style={[styles.cardLabelText, isFlipped && styles.cardLabelTextBack]}>
+                {isFlipped ? 'ANSWER' : 'QUESTION'}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={[styles.cardContent, isFlipped && styles.cardContentBack]}>
+            {isFlipped ? currentCard.back : currentCard.front}
+          </Text>
+
+          {!isFlipped && (
+            <Text style={styles.tapHint}>Tap to reveal answer</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.cardContainer} onPress={flipCard} activeOpacity={1}>
-        <Animated.View
-          style={[styles.card, styles.cardFront, { transform: [{ rotateY: frontInterpolate }] }]}
-        >
-          <Text style={styles.cardSideLabel}>QUESTION</Text>
-          <Text style={styles.cardText}>{card.front}</Text>
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.card,
-            styles.cardBack,
-            { transform: [{ rotateY: backInterpolate }], position: 'absolute' },
-          ]}
-        >
-          <Text style={styles.cardSideLabel}>ANSWER</Text>
-          <Text style={styles.cardText}>{card.back}</Text>
-        </Animated.View>
-      </TouchableOpacity>
-
-      {flipped && (
-        <View style={styles.answerButtons}>
+      {isFlipped ? (
+        <View style={styles.ratingArea}>
+          <Text style={styles.ratingPrompt}>How well did you know this?</Text>
+          <View style={styles.ratingButtons}>
+            {RATING_BUTTONS.map((btn) => (
+              <TouchableOpacity
+                key={btn.label}
+                style={[styles.ratingButton, { borderColor: btn.color, backgroundColor: btn.color + '20' }]}
+                onPress={() => handleRate(btn.grade)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.ratingButtonText, { color: btn.color }]}>{btn.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.ratingArea}>
           <TouchableOpacity
-            style={styles.dontKnowBtn}
-            onPress={() => handleAnswer(false)}
+            style={styles.revealButton}
+            onPress={handleFlip}
             activeOpacity={0.85}
           >
-            <Text style={styles.dontKnowText}>✗ Don't Know</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.knowBtn}
-            onPress={() => handleAnswer(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.knowText}>✓ Know It</Text>
+            <Text style={styles.revealButtonText}>Reveal Answer</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -145,9 +179,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundDark,
-    paddingHorizontal: spacing.xl,
   },
-  header: {
+  progressContainer: {
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
     gap: spacing.sm,
@@ -156,125 +190,193 @@ const styles = StyleSheet.create({
     height: 6,
     backgroundColor: colors.border,
     borderRadius: borderRadius.full,
+    overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statGreen: {
+  progressText: {
     fontSize: typography.fontSizeSm,
-    color: colors.success,
-    fontWeight: typography.fontWeightBold,
-  },
-  cardCount: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-  },
-  statRed: {
-    fontSize: typography.fontSizeSm,
-    color: colors.error,
-    fontWeight: typography.fontWeightBold,
-  },
-  subjectBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  subjectBadge: {
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  subjectText: {
-    fontSize: typography.fontSizeSm,
-    color: colors.primary,
-    fontWeight: typography.fontWeightSemiBold,
-  },
-  tapHint: {
-    fontSize: typography.fontSizeXs,
     color: colors.textMuted,
-  },
-  cardContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xxl,
-  },
-  card: {
-    width: '100%',
-    minHeight: 260,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xxl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backfaceVisibility: 'hidden',
-    ...shadows.lg,
-  },
-  cardFront: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardBack: {
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  cardSideLabel: {
-    fontSize: typography.fontSizeXs,
-    color: colors.textMuted,
-    fontWeight: typography.fontWeightBold,
-    letterSpacing: 1.5,
-    marginBottom: spacing.lg,
-  },
-  cardText: {
-    fontSize: typography.fontSizeLg,
-    color: colors.textPrimary,
     textAlign: 'center',
-    lineHeight: 26,
     fontWeight: typography.fontWeightMedium,
   },
-  answerButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    paddingBottom: spacing.xxl,
-  },
-  dontKnowBtn: {
+  cardArea: {
     flex: 1,
+    paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.error + '20',
-    borderWidth: 1.5,
-    borderColor: colors.error,
+    justifyContent: 'center',
+  },
+  flashcard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xxl,
+    minHeight: SCREEN_HEIGHT * 0.4,
+    justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
   },
-  dontKnowText: {
-    color: colors.error,
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightBold,
+  flashcardFlipped: {
+    backgroundColor: colors.success + '08',
+    borderColor: colors.success + '50',
   },
-  knowBtn: {
-    flex: 1,
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.lg,
+  cardLabelRow: {
+    position: 'absolute',
+    top: spacing.xl,
+    left: spacing.xl,
+  },
+  cardLabel: {
+    backgroundColor: colors.primary + '20',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+  },
+  cardLabelBack: {
     backgroundColor: colors.success + '20',
+    borderColor: colors.success + '40',
+  },
+  cardLabelText: {
+    fontSize: typography.fontSizeXs,
+    fontWeight: typography.fontWeightBold,
+    color: colors.primary,
+    letterSpacing: 1,
+  },
+  cardLabelTextBack: {
+    color: colors.success,
+  },
+  cardContent: {
+    fontSize: typography.fontSizeLg,
+    fontWeight: typography.fontWeightSemiBold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: typography.lineHeightLg,
+    marginTop: spacing.xl,
+  },
+  cardContentBack: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightRegular,
+    color: colors.textSecondary,
+    lineHeight: typography.lineHeightLg,
+  },
+  tapHint: {
+    position: 'absolute',
+    bottom: spacing.xl,
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+  },
+  ratingArea: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
+    paddingTop: spacing.md,
+  },
+  ratingPrompt: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  ratingButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  ratingButton: {
+    flex: 1,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: colors.success,
+  },
+  ratingButtonText: {
+    fontSize: typography.fontSizeSm,
+    fontWeight: typography.fontWeightBold,
+  },
+  revealButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xl,
     alignItems: 'center',
   },
-  knowText: {
-    color: colors.success,
-    fontSize: typography.fontSizeMd,
+  revealButtonText: {
+    fontSize: typography.fontSizeLg,
     fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  completionContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxl,
+    gap: spacing.lg,
+  },
+  completionEmoji: {
+    fontSize: 64,
+  },
+  completionTitle: {
+    fontSize: typography.fontSize2xl,
+    fontWeight: typography.fontWeightExtraBold,
+    color: colors.textPrimary,
+  },
+  completionSubtitle: {
+    fontSize: typography.fontSizeMd,
+    color: colors.textSecondary,
+  },
+  completionStats: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xl,
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
+    marginVertical: spacing.lg,
+  },
+  completionStat: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  completionStatValue: {
+    fontSize: typography.fontSize2xl,
+    fontWeight: typography.fontWeightExtraBold,
+  },
+  completionStatLabel: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textMuted,
+  },
+  completionStatDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+  },
+  completionButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xxxl,
+    alignItems: 'center',
+    width: '100%',
+  },
+  completionButtonText: {
+    fontSize: typography.fontSizeLg,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  completionSecondaryButton: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    width: '100%',
+  },
+  completionSecondaryButtonText: {
+    fontSize: typography.fontSizeMd,
+    color: colors.primary,
+    fontWeight: typography.fontWeightMedium,
   },
 });
