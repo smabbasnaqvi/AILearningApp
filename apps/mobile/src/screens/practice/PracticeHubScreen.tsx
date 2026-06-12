@@ -1,130 +1,197 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { MainTabParamList } from '../../navigation/types';
-import { colors, typography, spacing, borderRadius, shadows } from '../../constants/theme';
+import type { PracticeStackScreenProps } from '../../navigation/types';
+import { useStudyStore } from '../../store/studyStore';
+import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-type Props = BottomTabScreenProps<MainTabParamList, 'Practice'>;
+type Props = PracticeStackScreenProps<'PracticeHub'>;
 
-interface PracticeMode {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  color: string;
-  stat: string;
-  statLabel: string;
-}
+type Difficulty = 'Easy' | 'Medium' | 'Hard';
 
-const PRACTICE_MODES: PracticeMode[] = [
-  {
-    id: 'flashcards',
-    title: 'Flashcards',
-    description: 'Spaced repetition for long-term memory',
-    icon: '🃏',
-    color: '#6C63FF',
-    stat: '24',
-    statLabel: 'due today',
-  },
-  {
-    id: 'quick-quiz',
-    title: 'Quick Quiz',
-    description: '10 questions, instant feedback',
-    icon: '⚡',
-    color: '#FF9800',
-    stat: '85%',
-    statLabel: 'avg score',
-  },
-  {
-    id: 'mock-exam',
-    title: 'Mock Exam',
-    description: 'Full timed practice test',
-    icon: '📝',
-    color: '#FF6584',
-    stat: '2',
-    statLabel: 'completed',
-  },
-  {
-    id: 'past-papers',
-    title: 'Past Papers',
-    description: 'Real exam questions from previous years',
-    icon: '📄',
-    color: '#4CAF50',
-    stat: '12',
-    statLabel: 'available',
-  },
-];
+const SUBJECT_EMOJIS: Record<string, string> = {
+  Math: '📐',
+  Reading: '📖',
+  Writing: '✍️',
+  Science: '🔬',
+  English: '📝',
+  History: '🏛️',
+  Physics: '⚡',
+  Chemistry: '⚗️',
+  Biology: '🧬',
+  Economics: '📈',
+  Psychology: '🧠',
+  'Computer Science': '💻',
+};
 
 export function PracticeHubScreen({ navigation }: Props): React.JSX.Element {
-  function handlePress(mode: PracticeMode) {
-    if (mode.id === 'flashcards') {
-      (navigation as any).navigate('Flashcard', { subtopicId: 'default', title: 'Flashcards' });
-    } else if (mode.id === 'quick-quiz') {
-      (navigation as any).navigate('Quiz', { title: 'Quick Quiz' });
-    }
-    // TODO: implement mock exam and past papers navigation
-  }
+  const { subjects } = useStudyStore();
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('Medium');
+
+  const displaySubjects = subjects.length > 0 ? subjects : ['Math', 'Reading', 'Writing'];
+
+  const flashcardDecks = displaySubjects.slice(0, 3).map((subject, i) => ({
+    subject,
+    emoji: SUBJECT_EMOJIS[subject] ?? '📚',
+    cardsDue: [12, 5, 8][i] ?? 6,
+    totalCards: [45, 30, 38][i] ?? 30,
+  }));
+
+  const quizTypes = [
+    { id: 'quick', title: 'Quick Quiz', subtitle: '10 questions · ~5 min', icon: '⚡', questionCount: 10 },
+    { id: 'full', title: 'Full Practice Test', subtitle: '30 questions · ~20 min', icon: '📝', questionCount: 30 },
+    { id: 'weak', title: 'Weak Areas Focus', subtitle: 'Personalized · adaptive', icon: '🎯', questionCount: 15 },
+  ];
+
+  const difficulties: Difficulty[] = ['Easy', 'Medium', 'Hard'];
+  const difficultyColors: Record<Difficulty, string> = {
+    Easy: colors.success,
+    Medium: colors.warning,
+    Hard: colors.error,
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Practice</Text>
-          <Text style={styles.subtitle}>Choose how you want to study today</Text>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.pageTitle}>Practice</Text>
 
-        {/* Daily challenge banner */}
-        <View style={styles.dailyBanner}>
-          <Text style={styles.dailyIcon}>🎯</Text>
-          <View style={styles.dailyInfo}>
-            <Text style={styles.dailyTitle}>Daily Challenge</Text>
-            <Text style={styles.dailyDesc}>5 mixed questions • +50 XP</Text>
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statEmoji}>🃏</Text>
+            <Text style={styles.statValue}>25</Text>
+            <Text style={styles.statLabel}>Cards Due</Text>
           </View>
-          <TouchableOpacity style={styles.dailyBtn} activeOpacity={0.85}>
-            <Text style={styles.dailyBtnText}>Start</Text>
-          </TouchableOpacity>
+          <View style={styles.statCard}>
+            <Text style={styles.statEmoji}>🔥</Text>
+            <Text style={styles.statValue}>7</Text>
+            <Text style={styles.statLabel}>Quiz Streak</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statEmoji}>✅</Text>
+            <Text style={styles.statValue}>142</Text>
+            <Text style={styles.statLabel}>Practiced</Text>
+          </View>
         </View>
 
-        <View style={styles.grid}>
-          {PRACTICE_MODES.map((mode) => (
-            <TouchableOpacity
-              key={mode.id}
-              style={styles.card}
-              onPress={() => handlePress(mode)}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.cardIconBg, { backgroundColor: mode.color + '20' }]}>
-                <Text style={styles.cardIcon}>{mode.icon}</Text>
+        {/* Daily Challenge */}
+        <TouchableOpacity
+          style={styles.dailyChallenge}
+          onPress={() =>
+            navigation.navigate('Quiz', {
+              title: 'Daily Challenge',
+            })
+          }
+          activeOpacity={0.85}
+        >
+          <View style={styles.dailyChallengeLeft}>
+            <Text style={styles.dailyChallengeEmoji}>🔥</Text>
+            <View>
+              <Text style={styles.dailyChallengeTitle}>Daily Challenge</Text>
+              <Text style={styles.dailyChallengeSubtitle}>5 questions · Mixed · Bonus XP ⚡</Text>
+            </View>
+          </View>
+          <View style={styles.dailyChallengeButton}>
+            <Text style={styles.dailyChallengeButtonText}>Start</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Flashcard Decks */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Flashcard Decks</Text>
+            <Text style={styles.sectionSeeAll}>See all</Text>
+          </View>
+          {flashcardDecks.map((deck) => (
+            <View key={deck.subject} style={styles.deckCard}>
+              <View style={styles.deckLeft}>
+                <View style={styles.deckIconContainer}>
+                  <Text style={styles.deckEmoji}>{deck.emoji}</Text>
+                </View>
+                <View>
+                  <Text style={styles.deckSubject}>{deck.subject}</Text>
+                  <Text style={styles.deckMeta}>
+                    <Text style={styles.deckDueCount}>{deck.cardsDue} due</Text>
+                    {' · '}{deck.totalCards} total
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.cardTitle}>{mode.title}</Text>
-              <Text style={styles.cardDescription}>{mode.description}</Text>
-              <View style={styles.cardStat}>
-                <Text style={[styles.statNumber, { color: mode.color }]}>{mode.stat}</Text>
-                <Text style={styles.statLabel}>{mode.statLabel}</Text>
-              </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reviewButton}
+                onPress={() =>
+                  navigation.navigate('Flashcard', {
+                    subtopicId: deck.subject.toLowerCase(),
+                    title: `${deck.subject} Flashcards`,
+                  })
+                }
+                activeOpacity={0.85}
+              >
+                <Text style={styles.reviewButtonText}>Review</Text>
+              </TouchableOpacity>
+            </View>
           ))}
         </View>
 
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Recent Sessions</Text>
-          {[
-            { subject: 'Math', score: '8/10', time: '2h ago', type: 'Quiz' },
-            { subject: 'Reading', score: '15 cards', time: 'Yesterday', type: 'Flashcards' },
-          ].map((session, i) => (
-            <View key={i} style={styles.sessionRow}>
-              <Text style={styles.sessionType}>{session.type}</Text>
-              <Text style={styles.sessionSubject}>{session.subject}</Text>
-              <Text style={styles.sessionScore}>{session.score}</Text>
-              <Text style={styles.sessionTime}>{session.time}</Text>
-            </View>
+        {/* Quizzes */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quizzes</Text>
+
+          <View style={styles.difficultyRow}>
+            {difficulties.map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[
+                  styles.difficultyPill,
+                  selectedDifficulty === d && {
+                    backgroundColor: difficultyColors[d] + '20',
+                    borderColor: difficultyColors[d],
+                  },
+                ]}
+                onPress={() => setSelectedDifficulty(d)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.difficultyPillText,
+                    selectedDifficulty === d && { color: difficultyColors[d] },
+                  ]}
+                >
+                  {d}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {quizTypes.map((quiz) => (
+            <TouchableOpacity
+              key={quiz.id}
+              style={styles.quizCard}
+              onPress={() =>
+                navigation.navigate('Quiz', {
+                  title: quiz.title,
+                })
+              }
+              activeOpacity={0.85}
+            >
+              <View style={styles.quizIconContainer}>
+                <Text style={styles.quizEmoji}>{quiz.icon}</Text>
+              </View>
+              <View style={styles.quizInfo}>
+                <Text style={styles.quizTitle}>{quiz.title}</Text>
+                <Text style={styles.quizSubtitle}>{quiz.subtitle}</Text>
+              </View>
+              <View style={[styles.difficultyBadge, { backgroundColor: difficultyColors[selectedDifficulty] + '20', borderColor: difficultyColors[selectedDifficulty] }]}>
+                <Text style={[styles.difficultyBadgeText, { color: difficultyColors[selectedDifficulty] }]}>
+                  {selectedDifficulty}
+                </Text>
+              </View>
+            </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
@@ -137,150 +204,220 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
-  header: {
+  scrollContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.massive,
   },
-  title: {
-    fontSize: typography.fontSize3xl,
+  pageTitle: {
+    fontSize: typography.fontSize2xl,
     fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
+    marginBottom: spacing.xl,
   },
-  subtitle: {
-    fontSize: typography.fontSizeMd,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  dailyBanner: {
-    marginHorizontal: spacing.xl,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+  statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    marginBottom: spacing.lg,
-    ...shadows.sm,
+    marginBottom: spacing.xl,
   },
-  dailyIcon: {
-    fontSize: 28,
-  },
-  dailyInfo: {
+  statCard: {
     flex: 1,
-  },
-  dailyTitle: {
-    fontSize: typography.fontSizeMd,
-    fontWeight: typography.fontWeightSemiBold,
-    color: colors.textPrimary,
-  },
-  dailyDesc: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  dailyBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  dailyBtnText: {
-    color: colors.textPrimary,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.xl,
-    gap: spacing.md,
-    marginBottom: spacing.xxl,
-  },
-  card: {
-    width: '47%',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    gap: spacing.sm,
-    ...shadows.sm,
-  },
-  cardIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
     alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs,
   },
-  cardIcon: {
-    fontSize: 24,
+  statEmoji: {
+    fontSize: 22,
   },
-  cardTitle: {
-    fontSize: typography.fontSizeMd,
+  statValue: {
+    fontSize: typography.fontSizeXl,
     fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
-  },
-  cardDescription: {
-    fontSize: typography.fontSizeXs,
-    color: colors.textSecondary,
-    lineHeight: 16,
-  },
-  cardStat: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    marginTop: spacing.sm,
-  },
-  statNumber: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
   },
   statLabel: {
     fontSize: typography.fontSizeXs,
     color: colors.textMuted,
+    textAlign: 'center',
   },
-  recentSection: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
+  dailyChallenge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.secondary + '15',
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.secondary + '40',
+  },
+  dailyChallengeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  dailyChallengeEmoji: {
+    fontSize: 28,
+  },
+  dailyChallengeTitle: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  dailyChallengeSubtitle: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  dailyChallengeButton: {
+    backgroundColor: colors.secondary,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  dailyChallengeButtonText: {
+    fontSize: typography.fontSizeSm,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  section: {
+    marginBottom: spacing.xxl,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   sectionTitle: {
     fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightSemiBold,
+    fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
     marginBottom: spacing.md,
   },
-  sessionRow: {
+  sectionSeeAll: {
+    fontSize: typography.fontSizeSm,
+    color: colors.primary,
+    fontWeight: typography.fontWeightMedium,
+  },
+  deckCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  deckLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  deckIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deckEmoji: {
+    fontSize: 22,
+  },
+  deckSubject: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightSemiBold,
+    color: colors.textPrimary,
+  },
+  deckMeta: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  deckDueCount: {
+    color: colors.warning,
+    fontWeight: typography.fontWeightSemiBold,
+  },
+  reviewButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  reviewButtonText: {
+    fontSize: typography.fontSizeSm,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  difficultyRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  difficultyPill: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  difficultyPillText: {
+    fontSize: typography.fontSizeSm,
+    fontWeight: typography.fontWeightSemiBold,
+    color: colors.textMuted,
+  },
+  quizCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     marginBottom: spacing.sm,
-    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
   },
-  sessionType: {
-    fontSize: typography.fontSizeXs,
-    color: colors.primary,
-    fontWeight: typography.fontWeightMedium,
-    width: 70,
+  quizIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sessionSubject: {
+  quizEmoji: {
+    fontSize: 22,
+  },
+  quizInfo: {
     flex: 1,
-    fontSize: typography.fontSizeSm,
-    color: colors.textPrimary,
-    fontWeight: typography.fontWeightMedium,
   },
-  sessionScore: {
-    fontSize: typography.fontSizeSm,
-    color: colors.success,
+  quizTitle: {
+    fontSize: typography.fontSizeMd,
     fontWeight: typography.fontWeightSemiBold,
+    color: colors.textPrimary,
   },
-  sessionTime: {
+  quizSubtitle: {
     fontSize: typography.fontSizeXs,
     color: colors.textMuted,
-    width: 60,
-    textAlign: 'right',
+    marginTop: spacing.xs,
+  },
+  difficultyBadge: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
+  difficultyBadgeText: {
+    fontSize: typography.fontSizeXs,
+    fontWeight: typography.fontWeightSemiBold,
   },
 });

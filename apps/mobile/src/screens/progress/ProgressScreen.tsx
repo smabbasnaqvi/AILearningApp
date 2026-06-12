@@ -3,170 +3,183 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import { useStudyStore } from '../../store/studyStore';
 import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-// TODO: replace with real data from GET /progress/:userId
-const MOCK_MASTERY = [
-  { subject: 'Math', mastery: 72, color: '#6C63FF' },
-  { subject: 'Reading', mastery: 58, color: '#FF6584' },
-  { subject: 'Writing', mastery: 85, color: '#4CAF50' },
-  { subject: 'Science', mastery: 40, color: '#FF9800' },
-];
-
-const MOCK_SESSIONS = [
-  { id: 's1', type: 'Quiz', subject: 'Math', score: '8/10', xp: 80, date: 'Today, 2:00 PM' },
-  { id: 's2', type: 'Flashcards', subject: 'Reading', score: '15 cards', xp: 30, date: 'Today, 10:00 AM' },
-  { id: 's3', type: 'Quiz', subject: 'Writing', score: '9/10', xp: 90, date: 'Yesterday, 7:00 PM' },
-  { id: 's4', type: 'Flashcards', subject: 'Math', score: '20 cards', xp: 40, date: 'Yesterday, 4:00 PM' },
-];
-
-function StreakCalendar({ currentStreak }: { currentStreak: number }) {
-  const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const today = new Date().getDay();
-  const adjustedToday = today === 0 ? 6 : today - 1;
-
-  return (
-    <View style={calStyles.container}>
-      {days.map((day, idx) => {
-        const isActive = idx <= adjustedToday && idx > adjustedToday - Math.min(currentStreak, 7);
-        const isToday = idx === adjustedToday;
-        return (
-          <View key={idx} style={calStyles.dayCol}>
-            <Text style={calStyles.dayLabel}>{day}</Text>
-            <View
-              style={[
-                calStyles.dayCircle,
-                isActive && calStyles.dayCircleActive,
-                isToday && calStyles.dayCircleToday,
-              ]}
-            >
-              {isActive && <Text style={calStyles.flame}>🔥</Text>}
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
+function getMasteryLevel(score: number): { label: string; color: string } {
+  if (score >= 85) return { label: 'Mastered', color: colors.success };
+  if (score >= 65) return { label: 'Proficient', color: colors.primary };
+  if (score >= 40) return { label: 'Developing', color: colors.warning };
+  return { label: 'Novice', color: colors.textMuted };
 }
 
-const calStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-  },
-  dayCol: {
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  dayLabel: {
-    fontSize: typography.fontSizeXs,
-    color: colors.textMuted,
-    fontWeight: typography.fontWeightMedium,
-  },
-  dayCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dayCircleActive: {
-    backgroundColor: colors.primary + '30',
-    borderColor: colors.primary,
-  },
-  dayCircleToday: {
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  flame: {
-    fontSize: 16,
-  },
-});
-
 export function ProgressScreen(): React.JSX.Element {
-  const streak = useStudyStore((s) => s.streak);
-  const xp = useStudyStore((s) => s.xp);
+  const { subjects, streak, xp } = useStudyStore();
+
+  // Mock data for display
+  const subjectMastery = subjects.map((subject, i) => ({
+    subject,
+    score: [72, 45, 88, 33, 61, 79, 52][i % 7] ?? 50,
+  }));
+
+  const overallMastery =
+    subjectMastery.length > 0
+      ? Math.round(subjectMastery.reduce((sum, s) => sum + s.score, 0) / subjectMastery.length)
+      : 0;
+
+  const currentStreak = streak?.currentStreak ?? 0;
+  const longestStreak = streak?.longestStreak ?? 0;
+  const freezesAvailable = streak?.freezesAvailable ?? 2;
+
+  // Last 7 days activity mock
+  const last7Days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const activityData = [1, 1, 0, 1, 1, 1, 0];
+
+  // Weekly bar heights mock (0-1)
+  const weeklyActivity = [0.6, 0.4, 0, 0.9, 0.7, 0.5, 0];
+
+  const xpEvents = [
+    { id: '1', type: 'session_complete', description: 'Completed Math session', amount: 35, icon: '📚' },
+    { id: '2', type: 'streak_bonus', description: '5 day streak bonus!', amount: 20, icon: '🔥' },
+    { id: '3', type: 'mastery_unlock', description: 'Proficient in Algebra', amount: 50, icon: '⭐' },
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Progress</Text>
-          <View style={styles.xpBadge}>
-            <Text style={styles.xpText}>⚡ {xp} XP</Text>
-          </View>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.pageTitle}>My Progress</Text>
 
-        {/* Streak section */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>🔥 Streak</Text>
-            <Text style={styles.streakNumber}>{streak?.currentStreak ?? 0} days</Text>
-          </View>
-          <View style={styles.card}>
-            <StreakCalendar currentStreak={streak?.currentStreak ?? 0} />
-            <View style={styles.streakStatsRow}>
-              <View style={styles.streakStat}>
-                <Text style={styles.streakStatValue}>{streak?.currentStreak ?? 0}</Text>
-                <Text style={styles.streakStatLabel}>Current</Text>
+        {/* Overall Mastery */}
+        <View style={styles.masteryCard}>
+          <Text style={styles.cardTitle}>Overall Mastery</Text>
+          <View style={styles.masteryCircleRow}>
+            <View style={styles.masteryCircleOuter}>
+              <View style={styles.masteryCircleInner}>
+                <Text style={styles.masteryCircleNumber}>{overallMastery}%</Text>
+                <Text style={styles.masteryCircleLabel}>mastery</Text>
               </View>
-              <View style={styles.streakDivider} />
-              <View style={styles.streakStat}>
-                <Text style={styles.streakStatValue}>{streak?.longestStreak ?? 0}</Text>
-                <Text style={styles.streakStatLabel}>Best</Text>
-              </View>
-              <View style={styles.streakDivider} />
-              <View style={styles.streakStat}>
-                <Text style={styles.streakStatValue}>{streak?.freezesRemaining ?? 0}</Text>
-                <Text style={styles.streakStatLabel}>Freezes left</Text>
-              </View>
+            </View>
+            <View style={styles.masteryLegend}>
+              {[
+                { label: 'Mastered', color: colors.success, pct: 25 },
+                { label: 'Proficient', color: colors.primary, pct: 35 },
+                { label: 'Developing', color: colors.warning, pct: 30 },
+                { label: 'Novice', color: colors.textMuted, pct: 10 },
+              ].map((item) => (
+                <View key={item.label} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                  <Text style={styles.legendLabel}>{item.label}</Text>
+                  <Text style={styles.legendPct}>{item.pct}%</Text>
+                </View>
+              ))}
             </View>
           </View>
         </View>
 
-        {/* Mastery */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 Mastery by Subject</Text>
-          <View style={styles.card}>
-            {MOCK_MASTERY.map((s) => (
-              <View key={s.subject} style={styles.masteryRow}>
-                <Text style={styles.masterySubject}>{s.subject}</Text>
-                <View style={styles.masteryTrack}>
-                  <View
-                    style={[
-                      styles.masteryFill,
-                      { width: `${s.mastery}%`, backgroundColor: s.color },
-                    ]}
-                  />
+        {/* Subject Mastery */}
+        {subjectMastery.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Subjects</Text>
+            {subjectMastery.map(({ subject, score }) => {
+              const level = getMasteryLevel(score);
+              return (
+                <View key={subject} style={styles.subjectRow}>
+                  <View style={styles.subjectHeader}>
+                    <Text style={styles.subjectName}>{subject}</Text>
+                    <View style={[styles.levelBadge, { backgroundColor: level.color + '20', borderColor: level.color }]}>
+                      <Text style={[styles.levelBadgeText, { color: level.color }]}>{level.label}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.subjectBarBg}>
+                    <View
+                      style={[
+                        styles.subjectBarFill,
+                        { width: `${score}%`, backgroundColor: level.color },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.subjectScore}>{score}%</Text>
                 </View>
-                <Text style={[styles.masteryPct, { color: s.color }]}>{s.mastery}%</Text>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Streak Card */}
+        <View style={styles.streakCard}>
+          <Text style={styles.cardTitle}>Streak</Text>
+          <View style={styles.streakNumbers}>
+            <View style={styles.streakStat}>
+              <Text style={styles.streakEmoji}>🔥</Text>
+              <Text style={styles.streakNumber}>{currentStreak}</Text>
+              <Text style={styles.streakStatLabel}>Current</Text>
+            </View>
+            <View style={styles.streakDivider} />
+            <View style={styles.streakStat}>
+              <Text style={styles.streakEmoji}>🏆</Text>
+              <Text style={styles.streakNumber}>{longestStreak}</Text>
+              <Text style={styles.streakStatLabel}>Best</Text>
+            </View>
+            <View style={styles.streakDivider} />
+            <View style={styles.streakStat}>
+              <Text style={styles.streakEmoji}>🛡️</Text>
+              <Text style={styles.streakNumber}>{freezesAvailable}</Text>
+              <Text style={styles.streakStatLabel}>Freezes</Text>
+            </View>
+          </View>
+
+          <View style={styles.weekDots}>
+            {last7Days.map((day, i) => (
+              <View key={day} style={styles.weekDayItem}>
+                <View
+                  style={[
+                    styles.weekDot,
+                    activityData[i] ? styles.weekDotActive : styles.weekDotInactive,
+                  ]}
+                />
+                <Text style={styles.weekDayLabel}>{day}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        {/* Session History */}
+        {/* Weekly Activity */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 Recent Sessions</Text>
-          {MOCK_SESSIONS.map((session) => (
-            <View key={session.id} style={styles.sessionCard}>
-              <View style={styles.sessionLeft}>
-                <Text style={styles.sessionType}>{session.type}</Text>
-                <Text style={styles.sessionSubject}>{session.subject}</Text>
-                <Text style={styles.sessionDate}>{session.date}</Text>
+          <Text style={styles.sectionTitle}>Weekly Activity</Text>
+          <View style={styles.weeklyBarsCard}>
+            <View style={styles.weeklyBars}>
+              {last7Days.map((day, i) => (
+                <View key={day} style={styles.barColumn}>
+                  <View style={styles.barTrack}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        { height: `${weeklyActivity[i] * 100}%` },
+                        weeklyActivity[i] > 0 ? styles.barFillActive : styles.barFillEmpty,
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.barLabel}>{day}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* XP Events */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recent XP</Text>
+          <Text style={styles.totalXP}>Total: {xp.toLocaleString()} XP ⚡</Text>
+          {xpEvents.map((event) => (
+            <View key={event.id} style={styles.xpEventRow}>
+              <View style={styles.xpEventIcon}>
+                <Text style={styles.xpEventEmoji}>{event.icon}</Text>
               </View>
-              <View style={styles.sessionRight}>
-                <Text style={styles.sessionScore}>{session.score}</Text>
-                <Text style={styles.sessionXP}>+{session.xp} XP</Text>
-              </View>
+              <Text style={styles.xpEventDesc}>{event.description}</Text>
+              <Text style={styles.xpEventAmount}>+{event.amount}</Text>
             </View>
           ))}
         </View>
@@ -180,153 +193,272 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  scrollContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
-  title: {
-    fontSize: typography.fontSize3xl,
-    fontWeight: typography.fontWeightBold,
-    color: colors.textPrimary,
-  },
-  xpBadge: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  xpText: {
-    fontSize: typography.fontSizeSm,
-    color: colors.primary,
-    fontWeight: typography.fontWeightBold,
-  },
-  section: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.lg,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightSemiBold,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
-  },
-  streakNumber: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightBold,
-    color: colors.primary,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  streakStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginTop: spacing.sm,
-  },
-  streakStat: {
-    alignItems: 'center',
-  },
-  streakStatValue: {
+  pageTitle: {
     fontSize: typography.fontSize2xl,
     fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
+    marginBottom: spacing.xl,
   },
-  streakStatLabel: {
+  masteryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cardTitle: {
+    fontSize: typography.fontSizeLg,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  masteryCircleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xl,
+  },
+  masteryCircleOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: borderRadius.full,
+    borderWidth: 6,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceElevated,
+  },
+  masteryCircleInner: {
+    alignItems: 'center',
+  },
+  masteryCircleNumber: {
+    fontSize: typography.fontSizeXl,
+    fontWeight: typography.fontWeightExtraBold,
+    color: colors.primary,
+  },
+  masteryCircleLabel: {
     fontSize: typography.fontSizeXs,
-    color: colors.textSecondary,
-    marginTop: 2,
+    color: colors.textMuted,
   },
-  streakDivider: {
-    width: 1,
-    backgroundColor: colors.border,
+  masteryLegend: {
+    flex: 1,
+    gap: spacing.sm,
   },
-  masteryRow: {
+  legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.md,
   },
-  masterySubject: {
-    width: 70,
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: borderRadius.full,
+  },
+  legendLabel: {
+    flex: 1,
     fontSize: typography.fontSizeSm,
-    color: colors.textPrimary,
+    color: colors.textSecondary,
+  },
+  legendPct: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textMuted,
     fontWeight: typography.fontWeightMedium,
   },
-  masteryTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: colors.border,
-    borderRadius: borderRadius.full,
+  section: {
+    marginBottom: spacing.xl,
   },
-  masteryFill: {
-    height: '100%',
-    borderRadius: borderRadius.full,
-  },
-  masteryPct: {
-    width: 36,
-    fontSize: typography.fontSizeSm,
+  sectionTitle: {
+    fontSize: typography.fontSizeLg,
     fontWeight: typography.fontWeightBold,
-    textAlign: 'right',
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
   },
-  sessionCard: {
+  subjectRow: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
     padding: spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  sessionLeft: {
-    gap: 2,
+  subjectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
-  sessionType: {
+  subjectName: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightSemiBold,
+    color: colors.textPrimary,
+  },
+  levelBadge: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
+  levelBadgeText: {
     fontSize: typography.fontSizeXs,
-    color: colors.primary,
     fontWeight: typography.fontWeightSemiBold,
   },
-  sessionSubject: {
-    fontSize: typography.fontSizeMd,
-    color: colors.textPrimary,
-    fontWeight: typography.fontWeightMedium,
+  subjectBarBg: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+    marginBottom: spacing.xs,
   },
-  sessionDate: {
+  subjectBarFill: {
+    height: '100%',
+    borderRadius: borderRadius.full,
+  },
+  subjectScore: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+    alignSelf: 'flex-end',
+  },
+  streakCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  streakNumbers: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  streakStat: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  streakEmoji: {
+    fontSize: 22,
+  },
+  streakNumber: {
+    fontSize: typography.fontSize2xl,
+    fontWeight: typography.fontWeightExtraBold,
+    color: colors.textPrimary,
+  },
+  streakStatLabel: {
     fontSize: typography.fontSizeXs,
     color: colors.textMuted,
   },
-  sessionRight: {
+  streakDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+  },
+  weekDots: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  weekDayItem: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  weekDot: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.full,
+  },
+  weekDotActive: {
+    backgroundColor: colors.primary,
+  },
+  weekDotInactive: {
+    backgroundColor: colors.border,
+  },
+  weekDayLabel: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+  },
+  weeklyBarsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  weeklyBars: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-end',
-    gap: 2,
+    height: 80,
   },
-  sessionScore: {
+  barColumn: {
+    flex: 1,
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'flex-end',
+    gap: spacing.xs,
+  },
+  barTrack: {
+    width: 20,
+    flex: 1,
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.xs,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  barFill: {
+    width: '100%',
+    borderRadius: borderRadius.xs,
+  },
+  barFillActive: {
+    backgroundColor: colors.primary,
+  },
+  barFillEmpty: {
+    backgroundColor: 'transparent',
+  },
+  barLabel: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+  },
+  totalXP: {
     fontSize: typography.fontSizeMd,
-    color: colors.textPrimary,
-    fontWeight: typography.fontWeightBold,
-  },
-  sessionXP: {
-    fontSize: typography.fontSizeSm,
-    color: colors.primary,
     fontWeight: typography.fontWeightSemiBold,
+    color: colors.primary,
+    marginBottom: spacing.md,
+  },
+  xpEventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  xpEventIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  xpEventEmoji: {
+    fontSize: 16,
+  },
+  xpEventDesc: {
+    flex: 1,
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
+  },
+  xpEventAmount: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightBold,
+    color: colors.success,
   },
 });

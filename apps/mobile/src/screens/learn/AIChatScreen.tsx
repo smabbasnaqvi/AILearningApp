@@ -5,163 +5,192 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
   SafeAreaView,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
-import type { StackScreenProps } from '@react-navigation/stack';
-import type { LearnStackParamList } from '../../navigation/types';
+import type { LearnStackScreenProps } from '../../navigation/types';
 import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-type Props = StackScreenProps<LearnStackParamList, 'AIChat'>;
+type Props = LearnStackScreenProps<'AIChat'>;
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  hintLevel?: number;
   timestamp: Date;
 }
 
 const INITIAL_MESSAGE: ChatMessage = {
-  id: 'init',
+  id: 'welcome',
   role: 'assistant',
   content:
-    "Hi! I'm your AI tutor. I'll guide you with questions and hints rather than giving you direct answers — that's how you really learn. What would you like to explore today?",
+    "Hello! I'm your AI Tutor. I use the Socratic method — I'll guide you to the answer rather than give it directly. What are you working on?",
   timestamp: new Date(),
 };
 
-// TODO: replace with real API call to /ai-tutor/chat
-async function mockAIResponse(userMessage: string): Promise<string> {
-  await new Promise((r) => setTimeout(r, 800));
-  const hints = [
-    "Great question! Before I answer, what do you already know about this topic?",
-    "Let's think through this together. What's the first step you'd take to solve this?",
-    "Interesting! Can you tell me what formula or concept might apply here?",
-    "You're on the right track. What happens if you break the problem into smaller parts?",
-    "Think about what you've learned so far. Does any similar example come to mind?",
-  ];
-  return hints[Math.floor(Math.random() * hints.length)];
-}
+const MOCK_RESPONSES = [
+  "That's an interesting approach! Let me ask you this: what do you already know about this concept? What have you tried so far?",
+  "Good thinking! Now consider this: if you were to break this problem into smaller steps, what would the first step be?",
+  "You're on the right track! Think about what happens when you apply the underlying principle here. What do you notice?",
+  "Excellent effort! Let's look at this from a different angle. Can you think of a similar problem you've solved before?",
+  "Great persistence! You've made 3 attempts now. Here's a more direct hint: focus on the relationship between the variables and how they change relative to each other.",
+];
+
+let mockResponseIndex = 0;
 
 export function AIChatScreen({ route }: Props): React.JSX.Element {
-  const title = route.params?.title ?? 'AI Tutor';
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [hintMode, setHintMode] = useState(true);
-  const flatListRef = useRef<FlatList>(null);
+  const [inputText, setInputText] = useState('');
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
+  const handleSend = useCallback(() => {
+    const text = inputText.trim();
+    if (!text) return;
 
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
       role: 'user',
       content: text,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
-    setIsLoading(true);
+    setMessages((prev) => [...prev, userMessage]);
+    setInputText('');
+    setAttemptCount((prev) => prev + 1);
+    setIsTyping(true);
 
-    try {
-      const response = await mockAIResponse(text);
-      const aiMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+    setTimeout(() => {
+      const responseContent = MOCK_RESPONSES[mockResponseIndex % MOCK_RESPONSES.length];
+      mockResponseIndex += 1;
+
+      const newAttemptCount = attemptCount + 1;
+      const assistantMessage: ChatMessage = {
+        id: `assistant-${Date.now()}`,
         role: 'assistant',
-        content: response,
+        content: responseContent,
+        hintLevel: Math.min(newAttemptCount, 3),
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, aiMsg]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [input, isLoading]);
 
-  function renderMessage({ item }: { item: ChatMessage }) {
-    const isUser = item.role === 'user';
-    return (
-      <View style={[styles.messageBubbleRow, isUser && styles.messageBubbleRowUser]}>
-        {!isUser && (
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>🤖</Text>
-          </View>
-        )}
-        <View
-          style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}
-        >
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
-            {item.content}
-          </Text>
-        </View>
-      </View>
-    );
-  }
+      setMessages((prev) => [...prev, assistantMessage]);
+      setIsTyping(false);
+
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }, 1200);
+  }, [inputText, attemptCount]);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Hint mode toggle */}
-      <View style={styles.hintBar}>
-        <Text style={styles.hintBarLabel}>Socratic mode</Text>
-        <TouchableOpacity
-          style={[styles.hintToggle, hintMode && styles.hintToggleOn]}
-          onPress={() => setHintMode((v) => !v)}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.hintThumb, hintMode && styles.hintThumbOn]} />
-        </TouchableOpacity>
-        <Text style={styles.hintBarSub}>{hintMode ? 'Hints only' : 'Full answers'}</Text>
-      </View>
-
-      <View style={styles.topicBadge}>
-        <Text style={styles.topicBadgeText}>📚 {title}</Text>
-      </View>
-
       <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.messageList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-          showsVerticalScrollIndicator={false}
-        />
-
-        {isLoading && (
-          <View style={styles.typingIndicator}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.typingText}>AI is thinking...</Text>
+        {attemptCount > 0 && (
+          <View style={styles.attemptBanner}>
+            <Text style={styles.attemptBannerText}>
+              🎯 {attemptCount} attempt{attemptCount !== 1 ? 's' : ''} — keep going!
+            </Text>
           </View>
         )}
 
-        <View style={styles.inputBar}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.messagesList}
+          contentContainerStyle={styles.messagesContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
+          {messages.map((message) => (
+            <View
+              key={message.id}
+              style={[
+                styles.messageRow,
+                message.role === 'user' ? styles.messageRowUser : styles.messageRowAssistant,
+              ]}
+            >
+              {message.role === 'assistant' && (
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarEmoji}>🤖</Text>
+                </View>
+              )}
+
+              <View style={styles.messageBubbleWrapper}>
+                <View
+                  style={[
+                    styles.messageBubble,
+                    message.role === 'user'
+                      ? styles.messageBubbleUser
+                      : styles.messageBubbleAssistant,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.messageText,
+                      message.role === 'user'
+                        ? styles.messageTextUser
+                        : styles.messageTextAssistant,
+                    ]}
+                  >
+                    {message.content}
+                  </Text>
+                </View>
+
+                {message.role === 'assistant' && message.hintLevel != null && message.hintLevel > 0 && (
+                  <View style={styles.hintIndicator}>
+                    <Text style={styles.hintIndicatorText}>
+                      Hint {message.hintLevel}/3
+                    </Text>
+                  </View>
+                )}
+
+                <Text style={styles.messageTimestamp}>
+                  {message.timestamp.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            </View>
+          ))}
+
+          {isTyping && (
+            <View style={styles.messageRow}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarEmoji}>🤖</Text>
+              </View>
+              <View style={styles.typingBubble}>
+                <Text style={styles.typingDots}>● ● ●</Text>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={styles.inputArea}>
           <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask a question..."
+            style={styles.textInput}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Ask a question or share your attempt..."
             placeholderTextColor={colors.textMuted}
             multiline
             maxLength={500}
-            returnKeyType="send"
-            onSubmitEditing={sendMessage}
+            returnKeyType="default"
           />
           <TouchableOpacity
-            style={[styles.sendButton, (!input.trim() || isLoading) && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!input.trim() || isLoading}
+            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || isTyping}
             activeOpacity={0.85}
           >
-            <Text style={styles.sendIcon}>➤</Text>
+            <Text style={styles.sendButtonText}>↑</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -174,147 +203,151 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
-  hintBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  keyboardAvoid: {
+    flex: 1,
+  },
+  attemptBanner: {
+    backgroundColor: colors.primary + '20',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-    gap: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.primary + '40',
   },
-  hintBarLabel: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeightMedium,
-  },
-  hintToggle: {
-    width: 40,
-    height: 22,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.border,
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  hintToggleOn: {
-    backgroundColor: colors.primary,
-  },
-  hintThumb: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.textPrimary,
-  },
-  hintThumbOn: {
-    alignSelf: 'flex-end',
-  },
-  hintBarSub: {
-    fontSize: typography.fontSizeXs,
-    color: colors.textMuted,
-  },
-  topicBadge: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm,
-  },
-  topicBadgeText: {
+  attemptBannerText: {
     fontSize: typography.fontSizeSm,
     color: colors.primary,
     fontWeight: typography.fontWeightMedium,
+    textAlign: 'center',
   },
-  keyboardView: {
+  messagesList: {
     flex: 1,
   },
-  messageList: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    gap: spacing.md,
+  messagesContent: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    gap: spacing.lg,
   },
-  messageBubbleRow: {
+  messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.sm,
   },
-  messageBubbleRowUser: {
-    justifyContent: 'flex-end',
+  messageRowUser: {
+    flexDirection: 'row-reverse',
+  },
+  messageRowAssistant: {
+    flexDirection: 'row',
   },
   avatarCircle: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceElevated,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexShrink: 0,
   },
-  avatarText: {
+  avatarEmoji: {
     fontSize: 16,
   },
-  bubble: {
+  messageBubbleWrapper: {
     maxWidth: '75%',
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    gap: spacing.xs,
   },
-  bubbleAssistant: {
-    backgroundColor: colors.surface,
-    borderBottomLeftRadius: 4,
+  messageBubble: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
   },
-  bubbleUser: {
+  messageBubbleUser: {
     backgroundColor: colors.primary,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: borderRadius.xs,
   },
-  bubbleText: {
+  messageBubbleAssistant: {
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: borderRadius.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  messageText: {
     fontSize: typography.fontSizeMd,
+    lineHeight: typography.lineHeightLg,
+  },
+  messageTextUser: {
     color: colors.textPrimary,
-    lineHeight: 21,
   },
-  bubbleTextUser: {
-    color: colors.textPrimary,
+  messageTextAssistant: {
+    color: colors.textSecondary,
   },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
+  hintIndicator: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.warning + '20',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: colors.warning + '50',
   },
-  typingText: {
+  hintIndicatorText: {
+    fontSize: typography.fontSizeXs,
+    color: colors.warning,
+    fontWeight: typography.fontWeightSemiBold,
+  },
+  messageTimestamp: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+    alignSelf: 'flex-end',
+  },
+  typingBubble: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderBottomLeftRadius: borderRadius.xs,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  typingDots: {
     fontSize: typography.fontSizeSm,
     color: colors.textMuted,
+    letterSpacing: 4,
   },
-  inputBar: {
+  inputArea: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-    gap: spacing.sm,
+    gap: spacing.md,
   },
-  input: {
+  textInput: {
     flex: 1,
     backgroundColor: colors.surfaceElevated,
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     fontSize: typography.fontSizeMd,
     color: colors.textPrimary,
     maxHeight: 100,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.full,
     backgroundColor: colors.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendButtonDisabled: {
     backgroundColor: colors.border,
   },
-  sendIcon: {
+  sendButtonText: {
+    fontSize: typography.fontSizeLg,
     color: colors.textPrimary,
-    fontSize: 16,
     fontWeight: typography.fontWeightBold,
   },
 });

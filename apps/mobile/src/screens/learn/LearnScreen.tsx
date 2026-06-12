@@ -4,97 +4,128 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { MainTabParamList } from '../../navigation/types';
+import type { LearnStackScreenProps } from '../../navigation/types';
 import { useStudyStore } from '../../store/studyStore';
 import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-type Props = BottomTabScreenProps<MainTabParamList, 'Learn'>;
+type Props = LearnStackScreenProps<'LearnHome'>;
 
-// TODO: replace with real subject data from API / store
-const MOCK_SUBJECTS = [
-  { id: 'math', name: 'Math', mastery: 72, topicCount: 12, color: '#6C63FF', icon: '📐' },
-  { id: 'reading', name: 'Reading', mastery: 58, topicCount: 8, color: '#FF6584', icon: '📖' },
-  { id: 'writing', name: 'Writing', mastery: 85, topicCount: 6, color: '#4CAF50', icon: '✍️' },
-  { id: 'science', name: 'Science', mastery: 40, topicCount: 10, color: '#FF9800', icon: '🔬' },
-];
+const SUBJECT_EMOJIS: Record<string, string> = {
+  Math: '📐',
+  Reading: '📖',
+  Writing: '✍️',
+  Science: '🔬',
+  English: '📝',
+  History: '🏛️',
+  Physics: '⚡',
+  Chemistry: '⚗️',
+  Biology: '🧬',
+  Economics: '📈',
+  Psychology: '🧠',
+  'Computer Science': '💻',
+};
 
-interface SubjectItem {
-  id: string;
-  name: string;
-  mastery: number;
-  topicCount: number;
-  color: string;
-  icon: string;
-}
+const SUBJECT_MOCK_DATA: Record<string, { topicsCount: number; mastery: number }> = {
+  Math: { topicsCount: 12, mastery: 68 },
+  Reading: { topicsCount: 8, mastery: 45 },
+  Writing: { topicsCount: 6, mastery: 72 },
+  Science: { topicsCount: 10, mastery: 38 },
+  English: { topicsCount: 9, mastery: 55 },
+  History: { topicsCount: 14, mastery: 30 },
+  Physics: { topicsCount: 11, mastery: 62 },
+  Chemistry: { topicsCount: 13, mastery: 41 },
+  Biology: { topicsCount: 15, mastery: 57 },
+  Economics: { topicsCount: 10, mastery: 49 },
+  Psychology: { topicsCount: 8, mastery: 66 },
+  'Computer Science': { topicsCount: 12, mastery: 78 },
+};
 
 export function LearnScreen({ navigation }: Props): React.JSX.Element {
-  const currentExamType = useStudyStore((s) => s.currentExamType);
+  const { subjects, currentExamType } = useStudyStore();
 
-  function renderSubject({ item }: { item: SubjectItem }) {
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() =>
-          (navigation as any).navigate('TopicList', {
-            subjectId: item.id,
-            subjectName: item.name,
-          })
-        }
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardAccent, { backgroundColor: item.color }]} />
-        <View style={styles.cardContent}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.icon}>{item.icon}</Text>
-            <View style={styles.cardInfo}>
-              <Text style={styles.subjectName}>{item.name}</Text>
-              <Text style={styles.topicCount}>{item.topicCount} topics</Text>
-            </View>
-            <Text style={[styles.masteryPct, { color: item.color }]}>{item.mastery}%</Text>
-          </View>
-
-          <View style={styles.masteryTrack}>
-            <View
-              style={[
-                styles.masteryFill,
-                { width: `${item.mastery}%`, backgroundColor: item.color },
-              ]}
-            />
-          </View>
-
-          <View style={styles.masteryLabel}>
-            <Text style={styles.masteryLabelText}>
-              {item.mastery < 40 ? '🔴 Needs work' : item.mastery < 70 ? '🟡 Progressing' : '🟢 Strong'}
-            </Text>
-            <Text style={styles.continueText}>Continue →</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  }
+  const displaySubjects = subjects.length > 0 ? subjects : (['Math', 'Reading', 'Writing'] as const);
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Learn</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.pageTitle}>Learn</Text>
+          <TouchableOpacity style={styles.searchButton}>
+            <Text style={styles.searchIcon}>🔍</Text>
+          </TouchableOpacity>
+        </View>
+
         {currentExamType && (
           <View style={styles.examBadge}>
-            <Text style={styles.examBadgeText}>{currentExamType}</Text>
+            <Text style={styles.examBadgeText}>📋 {currentExamType} Prep</Text>
           </View>
         )}
-      </View>
 
-      <FlatList
-        data={MOCK_SUBJECTS}
-        keyExtractor={(item) => item.id}
-        renderItem={renderSubject}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+        <Text style={styles.sectionTitle}>Your Subjects</Text>
+
+        {displaySubjects.map((subject) => {
+          const data = SUBJECT_MOCK_DATA[subject] ?? { topicsCount: 8, mastery: 50 };
+          const emoji = SUBJECT_EMOJIS[subject] ?? '📚';
+
+          return (
+            <TouchableOpacity
+              key={subject}
+              style={styles.subjectCard}
+              onPress={() =>
+                navigation.navigate('TopicList', {
+                  subjectId: subject.toLowerCase().replace(' ', '-'),
+                  subjectName: subject,
+                })
+              }
+              activeOpacity={0.85}
+            >
+              <View style={styles.subjectCardTop}>
+                <View style={styles.subjectIconContainer}>
+                  <Text style={styles.subjectEmoji}>{emoji}</Text>
+                </View>
+                <View style={styles.subjectInfo}>
+                  <Text style={styles.subjectName}>{subject}</Text>
+                  <Text style={styles.subjectMeta}>{data.topicsCount} topics</Text>
+                </View>
+                <View style={styles.masteryCircle}>
+                  <Text style={styles.masteryPct}>{data.mastery}%</Text>
+                </View>
+              </View>
+
+              <View style={styles.masteryBarBg}>
+                <View style={[styles.masteryBarFill, { width: `${data.mastery}%` }]} />
+              </View>
+
+              <View style={styles.subjectCardFooter}>
+                <Text style={styles.masteryLabel}>Mastery progress</Text>
+                <View style={styles.continueButton}>
+                  <Text style={styles.continueButtonText}>Continue →</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+
+        <TouchableOpacity
+          style={styles.aiTutorBanner}
+          onPress={() => navigation.navigate('AIChat', { title: 'AI Tutor' })}
+          activeOpacity={0.85}
+        >
+          <View style={styles.aiTutorLeft}>
+            <Text style={styles.aiTutorEmoji}>🤖</Text>
+            <View>
+              <Text style={styles.aiTutorTitle}>AI Tutor</Text>
+              <Text style={styles.aiTutorSubtitle}>Stuck on something? Ask me!</Text>
+            </View>
+          </View>
+          <View style={styles.aiTutorButton}>
+            <Text style={styles.aiTutorButtonText}>Ask →</Text>
+          </View>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -104,60 +135,82 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
+  scrollContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.massive,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: typography.fontSize3xl,
+  pageTitle: {
+    fontSize: typography.fontSize2xl,
     fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
   },
+  searchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  searchIcon: {
+    fontSize: 18,
+  },
   examBadge: {
-    backgroundColor: colors.surfaceElevated,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary + '20',
+    borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
+    marginBottom: spacing.xl,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.primary + '50',
   },
   examBadgeText: {
     fontSize: typography.fontSizeSm,
     color: colors.primary,
     fontWeight: typography.fontWeightSemiBold,
   },
-  list: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
-    gap: spacing.md,
+  sectionTitle: {
+    fontSize: typography.fontSizeLg,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
   },
-  card: {
+  subjectCard: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    flexDirection: 'row',
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  cardAccent: {
-    width: 4,
-  },
-  cardContent: {
-    flex: 1,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  cardHeader: {
+  subjectCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
-  icon: {
-    fontSize: 28,
+  subjectIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
-  cardInfo: {
+  subjectEmoji: {
+    fontSize: 24,
+  },
+  subjectInfo: {
     flex: 1,
   },
   subjectName: {
@@ -165,34 +218,99 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeightSemiBold,
     color: colors.textPrimary,
   },
-  topicCount: {
+  subjectMeta: {
     fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  masteryCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.full,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceElevated,
   },
   masteryPct: {
-    fontSize: typography.fontSizeXl,
+    fontSize: typography.fontSizeXs,
     fontWeight: typography.fontWeightBold,
+    color: colors.primary,
   },
-  masteryTrack: {
-    height: 4,
+  masteryBarBg: {
+    height: 6,
     backgroundColor: colors.border,
     borderRadius: borderRadius.full,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
   },
-  masteryFill: {
+  masteryBarFill: {
     height: '100%',
+    backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
   },
-  masteryLabel: {
+  subjectCardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  masteryLabelText: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
+  masteryLabel: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
   },
-  continueText: {
+  continueButton: {
+    backgroundColor: colors.primary + '20',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.primary + '50',
+  },
+  continueButtonText: {
     fontSize: typography.fontSizeSm,
     color: colors.primary,
-    fontWeight: typography.fontWeightMedium,
+    fontWeight: typography.fontWeightSemiBold,
+  },
+  aiTutorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.primary + '15',
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+  },
+  aiTutorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  aiTutorEmoji: {
+    fontSize: 28,
+  },
+  aiTutorTitle: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  aiTutorSubtitle: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  aiTutorButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  aiTutorButtonText: {
+    fontSize: typography.fontSizeSm,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
   },
 });

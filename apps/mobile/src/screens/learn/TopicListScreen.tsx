@@ -1,104 +1,201 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
-import type { StackScreenProps } from '@react-navigation/stack';
-import type { LearnStackParamList } from '../../navigation/types';
+import type { LearnStackScreenProps } from '../../navigation/types';
 import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
-type Props = StackScreenProps<LearnStackParamList, 'TopicList'>;
+type Props = LearnStackScreenProps<'TopicList'>;
 
-// TODO: replace with real topic data fetched by subjectId
-const MOCK_TOPICS = [
-  { id: 't1', name: 'Algebra', mastery: 80, subtopicCount: 4 },
-  { id: 't2', name: 'Geometry', mastery: 60, subtopicCount: 5 },
-  { id: 't3', name: 'Statistics', mastery: 45, subtopicCount: 3 },
-  { id: 't4', name: 'Trigonometry', mastery: 30, subtopicCount: 4 },
-  { id: 't5', name: 'Calculus', mastery: 15, subtopicCount: 6 },
-];
+interface SubtopicData {
+  id: string;
+  name: string;
+  completed: boolean;
+}
 
-function getMasteryColor(mastery: number): string {
-  if (mastery >= 70) return colors.success;
-  if (mastery >= 40) return colors.warning;
-  return colors.error;
+interface TopicData {
+  id: string;
+  name: string;
+  subtopics: SubtopicData[];
+  mastery: number;
+  status: 'locked' | 'in-progress' | 'completed';
+}
+
+function generateTopics(subjectName: string): TopicData[] {
+  const topicNames: Record<string, string[]> = {
+    Math: ['Algebra', 'Geometry', 'Trigonometry', 'Statistics', 'Calculus', 'Number Theory'],
+    Reading: ['Main Idea', 'Inference', 'Vocabulary in Context', 'Text Structure', 'Author Purpose', 'Evidence'],
+    Writing: ['Grammar', 'Punctuation', 'Sentence Structure', 'Essay Organization', 'Style', 'Revision'],
+    default: ['Fundamentals', 'Core Concepts', 'Applications', 'Advanced Topics', 'Problem Solving', 'Review'],
+  };
+
+  const names = topicNames[subjectName] ?? topicNames['default'];
+
+  return names.map((name, i) => ({
+    id: `topic-${i + 1}`,
+    name,
+    mastery: i === 0 ? 85 : i === 1 ? 60 : i === 2 ? 30 : 0,
+    status: i === 0 ? 'completed' : i <= 2 ? 'in-progress' : 'locked',
+    subtopics: [
+      { id: `${i}-1`, name: `${name} Basics`, completed: i === 0 },
+      { id: `${i}-2`, name: `${name} Practice`, completed: i === 0 },
+      { id: `${i}-3`, name: `${name} Advanced`, completed: false },
+    ],
+  }));
 }
 
 export function TopicListScreen({ navigation, route }: Props): React.JSX.Element {
-  const { subjectName } = route.params;
+  const { subjectId, subjectName } = route.params;
+  const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
+
+  const topics = generateTopics(subjectName);
+  const completedCount = topics.filter((t) => t.status === 'completed').length;
+  const overallMastery = Math.round(topics.reduce((sum, t) => sum + t.mastery, 0) / topics.length);
+
+  function toggleTopic(topicId: string, status: TopicData['status']): void {
+    if (status === 'locked') return;
+    setExpandedTopicId(expandedTopicId === topicId ? null : topicId);
+  }
+
+  function getStatusIcon(status: TopicData['status']): string {
+    if (status === 'completed') return '✓';
+    if (status === 'in-progress') return '▶';
+    return '🔒';
+  }
+
+  function getStatusColor(status: TopicData['status']): string {
+    if (status === 'completed') return colors.success;
+    if (status === 'in-progress') return colors.primary;
+    return colors.textMuted;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <FlatList
-        data={MOCK_TOPICS}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <Text style={styles.subjectLabel}>{subjectName}</Text>
-            <Text style={styles.title}>Topics</Text>
-            <Text style={styles.subtitle}>{MOCK_TOPICS.length} topics to master</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Overview Card */}
+        <View style={styles.overviewCard}>
+          <View style={styles.overviewStats}>
+            <View style={styles.overviewStat}>
+              <Text style={styles.overviewStatValue}>{overallMastery}%</Text>
+              <Text style={styles.overviewStatLabel}>Mastery</Text>
+            </View>
+            <View style={styles.overviewDivider} />
+            <View style={styles.overviewStat}>
+              <Text style={styles.overviewStatValue}>{completedCount}/{topics.length}</Text>
+              <Text style={styles.overviewStatLabel}>Completed</Text>
+            </View>
+            <View style={styles.overviewDivider} />
+            <View style={styles.overviewStat}>
+              <Text style={styles.overviewStatValue}>{topics.length * 3}</Text>
+              <Text style={styles.overviewStatLabel}>Subtopics</Text>
+            </View>
           </View>
-        }
-        renderItem={({ item }) => {
-          const masteryColor = getMasteryColor(item.mastery);
+          <View style={styles.overallBar}>
+            <View style={[styles.overallBarFill, { width: `${overallMastery}%` }]} />
+          </View>
+        </View>
+
+        {/* Topics */}
+        {topics.map((topic, index) => {
+          const isExpanded = expandedTopicId === topic.id;
+          const statusColor = getStatusColor(topic.status);
+          const isLocked = topic.status === 'locked';
+
           return (
             <TouchableOpacity
-              style={styles.topicCard}
-              onPress={() =>
-                navigation.navigate('AIChat', {
-                  topicId: item.id,
-                  title: item.name,
-                })
-              }
-              activeOpacity={0.8}
+              key={topic.id}
+              style={[styles.topicCard, isLocked && styles.topicCardLocked]}
+              onPress={() => toggleTopic(topic.id, topic.status)}
+              activeOpacity={isLocked ? 1 : 0.8}
             >
-              <View style={styles.topicLeft}>
-                <View
-                  style={[styles.masteryIndicator, { backgroundColor: masteryColor }]}
-                />
-                <View>
-                  <Text style={styles.topicName}>{item.name}</Text>
-                  <Text style={styles.subtopicCount}>{item.subtopicCount} subtopics</Text>
+              <View style={styles.topicHeader}>
+                <View style={[styles.topicNumber, { borderColor: statusColor }]}>
+                  <Text style={[styles.topicNumberText, { color: statusColor }]}>
+                    {getStatusIcon(topic.status)}
+                  </Text>
                 </View>
+                <View style={styles.topicInfo}>
+                  <Text style={[styles.topicName, isLocked && styles.topicNameLocked]}>
+                    {index + 1}. {topic.name}
+                  </Text>
+                  <Text style={styles.topicSubtopicsCount}>
+                    {topic.subtopics.length} subtopics
+                  </Text>
+                </View>
+                {!isLocked && (
+                  <Text style={styles.topicChevron}>{isExpanded ? '▾' : '▸'}</Text>
+                )}
               </View>
 
-              <View style={styles.topicRight}>
-                <Text style={[styles.masteryPct, { color: masteryColor }]}>
-                  {item.mastery}%
-                </Text>
-                <View style={styles.miniBarTrack}>
+              {!isLocked && (
+                <View style={styles.topicBarBg}>
                   <View
                     style={[
-                      styles.miniBarFill,
-                      { width: `${item.mastery}%`, backgroundColor: masteryColor },
+                      styles.topicBarFill,
+                      { width: `${topic.mastery}%`, backgroundColor: statusColor },
                     ]}
                   />
                 </View>
-              </View>
+              )}
+
+              {isExpanded && (
+                <View style={styles.subtopicsContainer}>
+                  {topic.subtopics.map((subtopic) => (
+                    <View key={subtopic.id} style={styles.subtopicRow}>
+                      <View
+                        style={[
+                          styles.subtopicDot,
+                          subtopic.completed ? styles.subtopicDotDone : styles.subtopicDotPending,
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.subtopicName,
+                          subtopic.completed && styles.subtopicNameDone,
+                        ]}
+                      >
+                        {subtopic.name}
+                      </Text>
+                      {subtopic.completed && (
+                        <Text style={styles.subtopicCheck}>✓</Text>
+                      )}
+                    </View>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.practiceButton}
+                    onPress={() =>
+                      navigation.navigate('AIChat', {
+                        topicId: topic.id,
+                        title: `AI Tutor: ${topic.name}`,
+                      })
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.practiceButtonText}>🤖 Ask AI Tutor</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </TouchableOpacity>
           );
-        }}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+        })}
 
-      <View style={styles.aiChatFab}>
         <TouchableOpacity
-          style={styles.fabButton}
+          style={styles.aiPracticeButton}
           onPress={() =>
             navigation.navigate('AIChat', {
-              title: `${subjectName} Tutor`,
+              title: `AI Tutor: ${subjectName}`,
             })
           }
           activeOpacity={0.85}
         >
-          <Text style={styles.fabText}>🤖 Ask AI Tutor</Text>
+          <Text style={styles.aiPracticeButtonText}>🤖 Practice {subjectName} with AI Tutor</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -108,95 +205,173 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
-  listHeader: {
+  scrollContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.massive,
   },
-  subjectLabel: {
-    fontSize: typography.fontSizeSm,
-    color: colors.primary,
-    fontWeight: typography.fontWeightSemiBold,
-    marginBottom: spacing.xs,
+  overviewCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  title: {
-    fontSize: typography.fontSize3xl,
+  overviewStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: spacing.lg,
+  },
+  overviewStat: {
+    alignItems: 'center',
+  },
+  overviewStatValue: {
+    fontSize: typography.fontSizeXl,
     fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
   },
-  subtitle: {
-    fontSize: typography.fontSizeMd,
-    color: colors.textSecondary,
+  overviewStatLabel: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
   },
-  list: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 100,
-    gap: spacing.md,
+  overviewDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+  },
+  overallBar: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  overallBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
   },
   topicCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    padding: spacing.xl,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  topicLeft: {
+  topicCardLocked: {
+    opacity: 0.6,
+  },
+  topicHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    flex: 1,
+    marginBottom: spacing.md,
   },
-  masteryIndicator: {
-    width: 12,
-    height: 12,
+  topicNumber: {
+    width: 36,
+    height: 36,
     borderRadius: borderRadius.full,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceElevated,
+  },
+  topicNumberText: {
+    fontSize: typography.fontSizeSm,
+    fontWeight: typography.fontWeightBold,
+  },
+  topicInfo: {
+    flex: 1,
   },
   topicName: {
     fontSize: typography.fontSizeMd,
     fontWeight: typography.fontWeightSemiBold,
     color: colors.textPrimary,
   },
-  subtopicCount: {
-    fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
-    marginTop: 2,
+  topicNameLocked: {
+    color: colors.textMuted,
   },
-  topicRight: {
-    alignItems: 'flex-end',
-    gap: 4,
-    minWidth: 60,
+  topicSubtopicsCount: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
   },
-  masteryPct: {
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
+  topicChevron: {
+    fontSize: typography.fontSizeMd,
+    color: colors.textMuted,
   },
-  miniBarTrack: {
-    width: 60,
+  topicBarBg: {
     height: 4,
     backgroundColor: colors.border,
     borderRadius: borderRadius.full,
+    overflow: 'hidden',
   },
-  miniBarFill: {
+  topicBarFill: {
     height: '100%',
     borderRadius: borderRadius.full,
   },
-  aiChatFab: {
-    position: 'absolute',
-    bottom: spacing.xxl,
-    left: spacing.xl,
-    right: spacing.xl,
+  subtopicsContainer: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.md,
   },
-  fabButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.lg,
-    borderRadius: borderRadius.lg,
+  subtopicRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.md,
   },
-  fabText: {
-    color: colors.textPrimary,
+  subtopicDot: {
+    width: 8,
+    height: 8,
+    borderRadius: borderRadius.full,
+  },
+  subtopicDotDone: {
+    backgroundColor: colors.success,
+  },
+  subtopicDotPending: {
+    backgroundColor: colors.border,
+  },
+  subtopicName: {
+    flex: 1,
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
+  },
+  subtopicNameDone: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  subtopicCheck: {
+    fontSize: typography.fontSizeSm,
+    color: colors.success,
+    fontWeight: typography.fontWeightBold,
+  },
+  practiceButton: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary + '15',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+  },
+  practiceButtonText: {
+    fontSize: typography.fontSizeSm,
+    color: colors.primary,
+    fontWeight: typography.fontWeightSemiBold,
+  },
+  aiPracticeButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  aiPracticeButtonText: {
     fontSize: typography.fontSizeMd,
     fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
   },
 });

@@ -4,112 +4,162 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../../store/authStore';
 import { useStudyStore } from '../../store/studyStore';
-import { colors, typography, spacing, borderRadius, shadows } from '../../constants/theme';
-
-// TODO: replace with real data from API
-const MOCK_SUBJECTS = [
-  { name: 'Math', mastery: 72, color: '#6C63FF' },
-  { name: 'Reading', mastery: 58, color: '#FF6584' },
-  { name: 'Writing', mastery: 85, color: '#4CAF50' },
-];
+import { colors, typography, spacing, borderRadius } from '../../constants/theme';
 
 export function HomeScreen(): React.JSX.Element {
-  const user = useAuthStore((s) => s.user);
-  const streak = useStudyStore((s) => s.streak);
-  const xp = useStudyStore((s) => s.xp);
-  const examDate = useStudyStore((s) => s.examDate);
+  const { profile } = useAuthStore();
+  const { xp, streak, subjects, currentExamType } = useStudyStore();
 
-  const daysUntilExam = examDate
-    ? Math.max(0, Math.round((new Date(examDate).getTime() - Date.now()) / 86400000))
-    : null;
+  const displayName = profile?.displayName ?? 'Learner';
+  const currentStreak = streak?.currentStreak ?? 0;
 
-  const firstName = user?.email?.split('@')[0] ?? 'Learner';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const todayDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const todayPlan = [
+    { id: '1', subject: subjects[0] ?? 'Math', duration: 30, type: 'lesson' },
+    { id: '2', subject: subjects[1] ?? 'Reading', duration: 20, type: 'practice' },
+    { id: '3', subject: subjects[2] ?? 'Writing', duration: 15, type: 'review' },
+  ].filter((_, i) => i < subjects.length || subjects.length === 0);
+
+  const typeColors: Record<string, string> = {
+    lesson: colors.primary,
+    practice: colors.secondary,
+    review: colors.warning,
+    mock: colors.error,
+  };
+
+  const dailyGoalMinutes = 60;
+  const completedMinutes = 25;
+  const dailyGoalPct = Math.min(1, completedMinutes / dailyGoalMinutes);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good morning,</Text>
-            <Text style={styles.name}>{firstName} 👋</Text>
+            <Text style={styles.greeting}>{greeting}, {displayName}!</Text>
+            <Text style={styles.dateText}>{todayDate}</Text>
           </View>
-          <View style={styles.xpBadge}>
-            <Text style={styles.xpText}>⚡ {xp} XP</Text>
+          <View style={styles.settingsButton}>
+            <Text style={styles.settingsIcon}>⚙️</Text>
           </View>
         </View>
 
-        {/* Streak Card */}
-        <LinearGradient
-          colors={[colors.primary, colors.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.streakCard}
-        >
-          <View style={styles.streakLeft}>
-            <Text style={styles.streakEmoji}>🔥</Text>
-            <View>
-              <Text style={styles.streakNumber}>{streak?.currentStreak ?? 0}</Text>
-              <Text style={styles.streakLabel}>Day Streak</Text>
+        {/* XP & Streak Card */}
+        <View style={styles.statsCard}>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statEmoji}>⚡</Text>
+              <View>
+                <Text style={styles.statValue}>{xp.toLocaleString()}</Text>
+                <Text style={styles.statLabel}>Total XP</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statEmoji}>🔥</Text>
+              <View>
+                <Text style={styles.statValue}>{currentStreak}</Text>
+                <Text style={styles.statLabel}>Day Streak</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statEmoji}>📚</Text>
+              <View>
+                <Text style={styles.statValue}>{subjects.length || 0}</Text>
+                <Text style={styles.statLabel}>Subjects</Text>
+              </View>
             </View>
           </View>
-          <View style={styles.streakRight}>
-            <Text style={styles.streakBest}>Best: {streak?.longestStreak ?? 0} days</Text>
-            <TouchableOpacity style={styles.resumeBtn} activeOpacity={0.85}>
-              <Text style={styles.resumeBtnText}>Resume →</Text>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
 
-        {/* Daily Goal */}
+          <View style={styles.dailyGoalSection}>
+            <View style={styles.dailyGoalHeader}>
+              <Text style={styles.dailyGoalLabel}>Daily Goal</Text>
+              <Text style={styles.dailyGoalProgress}>{completedMinutes}/{dailyGoalMinutes} min</Text>
+            </View>
+            <View style={styles.goalBar}>
+              <View style={[styles.goalBarFill, { width: `${dailyGoalPct * 100}%` }]} />
+            </View>
+          </View>
+        </View>
+
+        {/* Today's Plan */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's Goal</Text>
-          <View style={styles.goalCard}>
-            <View style={styles.goalInfo}>
-              <Text style={styles.goalText}>Complete 2 study sessions</Text>
-              <Text style={styles.goalProgress}>1 / 2 done</Text>
+          <Text style={styles.sectionTitle}>Today's Plan</Text>
+          {todayPlan.length > 0 ? (
+            todayPlan.map((session) => (
+              <TouchableOpacity key={session.id} style={styles.planCard} activeOpacity={0.8}>
+                <View style={styles.planCardLeft}>
+                  <Text style={styles.planSubject}>{session.subject}</Text>
+                  <Text style={styles.planDuration}>{session.duration} minutes</Text>
+                </View>
+                <View style={[styles.typeBadge, { backgroundColor: typeColors[session.type] + '20', borderColor: typeColors[session.type] }]}>
+                  <Text style={[styles.typeBadgeText, { color: typeColors[session.type] }]}>
+                    {session.type.charAt(0).toUpperCase() + session.type.slice(1)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyPlan}>
+              <Text style={styles.emptyPlanText}>Select subjects to build your study plan</Text>
             </View>
-            <View style={styles.goalBarTrack}>
-              <View style={[styles.goalBarFill, { width: '50%' }]} />
-            </View>
-          </View>
+          )}
         </View>
 
-        {/* Exam Countdown */}
-        {daysUntilExam !== null && (
-          <View style={styles.countdownCard}>
-            <Text style={styles.countdownIcon}>📅</Text>
-            <View>
-              <Text style={styles.countdownNumber}>{daysUntilExam} days</Text>
-              <Text style={styles.countdownLabel}>until your exam</Text>
+        {/* Continue Learning */}
+        {currentExamType && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Continue Learning</Text>
+            <View style={styles.continueCard}>
+              <View style={styles.continueCardTop}>
+                <Text style={styles.continueCardEmoji}>📖</Text>
+                <View style={styles.continueCardInfo}>
+                  <Text style={styles.continueCardTitle}>
+                    {subjects[0] ?? 'Math'} — Algebra Basics
+                  </Text>
+                  <Text style={styles.continueCardSubtitle}>{currentExamType} Prep</Text>
+                </View>
+              </View>
+              <View style={styles.continueProgressBar}>
+                <View style={styles.continueProgressFill} />
+              </View>
+              <Text style={styles.continueProgressText}>42% complete</Text>
             </View>
           </View>
         )}
 
-        {/* Subject Mastery */}
+        {/* Quick Practice */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Subject Mastery</Text>
-          {MOCK_SUBJECTS.map((s) => (
-            <View key={s.name} style={styles.subjectRow}>
-              <View style={[styles.subjectDot, { backgroundColor: s.color }]} />
-              <Text style={styles.subjectName}>{s.name}</Text>
-              <View style={styles.masteryTrack}>
-                <View
-                  style={[
-                    styles.masteryFill,
-                    { width: `${s.mastery}%`, backgroundColor: s.color },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.masteryPct, { color: s.color }]}>{s.mastery}%</Text>
-            </View>
-          ))}
+          <Text style={styles.sectionTitle}>Quick Practice</Text>
+          <View style={styles.quickPracticeRow}>
+            <TouchableOpacity style={styles.quickButton} activeOpacity={0.8}>
+              <Text style={styles.quickButtonEmoji}>🃏</Text>
+              <Text style={styles.quickButtonText}>Flashcards</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickButton} activeOpacity={0.8}>
+              <Text style={styles.quickButtonEmoji}>✏️</Text>
+              <Text style={styles.quickButtonText}>Quiz</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickButton} activeOpacity={0.8}>
+              <Text style={styles.quickButtonEmoji}>🤖</Text>
+              <Text style={styles.quickButtonText}>AI Tutor</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -121,176 +171,227 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundDark,
   },
+  scrollContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    alignItems: 'flex-start',
+    marginBottom: spacing.xl,
   },
   greeting: {
-    fontSize: typography.fontSizeMd,
-    color: colors.textSecondary,
-  },
-  name: {
     fontSize: typography.fontSize2xl,
     fontWeight: typography.fontWeightBold,
     color: colors.textPrimary,
   },
-  xpBadge: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  dateText: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
     borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.border,
   },
-  xpText: {
-    fontSize: typography.fontSizeSm,
-    color: colors.primary,
-    fontWeight: typography.fontWeightBold,
+  settingsIcon: {
+    fontSize: 18,
   },
-  streakCard: {
-    marginHorizontal: spacing.xl,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    ...shadows.md,
-  },
-  streakLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  streakEmoji: {
-    fontSize: 36,
-  },
-  streakNumber: {
-    fontSize: typography.fontSize3xl,
-    fontWeight: typography.fontWeightExtraBold,
-    color: colors.textPrimary,
-  },
-  streakLabel: {
-    fontSize: typography.fontSizeSm,
-    color: 'rgba(255,255,255,0.75)',
-  },
-  streakRight: {
-    alignItems: 'flex-end',
-    gap: spacing.sm,
-  },
-  streakBest: {
-    fontSize: typography.fontSizeSm,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  resumeBtn: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  resumeBtnText: {
-    color: colors.textPrimary,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
-  },
-  section: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-  },
-  sectionTitle: {
-    fontSize: typography.fontSizeLg,
-    fontWeight: typography.fontWeightSemiBold,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
-  },
-  goalCard: {
+  statsCard: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
-  goalInfo: {
+  statEmoji: {
+    fontSize: 22,
+  },
+  statValue: {
+    fontSize: typography.fontSizeXl,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+  },
+  statLabel: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+  },
+  statDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: colors.border,
+  },
+  dailyGoalSection: {
+    gap: spacing.sm,
+  },
+  dailyGoalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  goalText: {
-    fontSize: typography.fontSizeMd,
-    color: colors.textPrimary,
+  dailyGoalLabel: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textSecondary,
     fontWeight: typography.fontWeightMedium,
   },
-  goalProgress: {
-    fontSize: typography.fontSizeMd,
+  dailyGoalProgress: {
+    fontSize: typography.fontSizeSm,
     color: colors.primary,
     fontWeight: typography.fontWeightSemiBold,
   },
-  goalBarTrack: {
-    height: 6,
+  goalBar: {
+    height: 8,
     backgroundColor: colors.border,
     borderRadius: borderRadius.full,
+    overflow: 'hidden',
   },
   goalBarFill: {
     height: '100%',
     backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
   },
-  countdownCard: {
-    marginHorizontal: spacing.xl,
-    marginTop: spacing.lg,
+  section: {
+    marginBottom: spacing.xxl,
+  },
+  sectionTitle: {
+    fontSize: typography.fontSizeLg,
+    fontWeight: typography.fontWeightBold,
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+  },
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+    marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  countdownIcon: {
-    fontSize: 28,
+  planCardLeft: {
+    gap: spacing.xs,
   },
-  countdownNumber: {
-    fontSize: typography.fontSize2xl,
-    fontWeight: typography.fontWeightBold,
+  planSubject: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightSemiBold,
     color: colors.textPrimary,
   },
-  countdownLabel: {
+  planDuration: {
     fontSize: typography.fontSizeSm,
-    color: colors.textSecondary,
+    color: colors.textMuted,
   },
-  subjectRow: {
+  typeBadge: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+  },
+  typeBadgeText: {
+    fontSize: typography.fontSizeXs,
+    fontWeight: typography.fontWeightSemiBold,
+  },
+  emptyPlan: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+  },
+  emptyPlanText: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  continueCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  continueCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
-  subjectDot: {
-    width: 10,
-    height: 10,
-    borderRadius: borderRadius.full,
+  continueCardEmoji: {
+    fontSize: 28,
   },
-  subjectName: {
-    fontSize: typography.fontSizeMd,
-    color: colors.textPrimary,
-    width: 70,
-    fontWeight: typography.fontWeightMedium,
-  },
-  masteryTrack: {
+  continueCardInfo: {
     flex: 1,
+  },
+  continueCardTitle: {
+    fontSize: typography.fontSizeMd,
+    fontWeight: typography.fontWeightSemiBold,
+    color: colors.textPrimary,
+  },
+  continueCardSubtitle: {
+    fontSize: typography.fontSizeSm,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  continueProgressBar: {
     height: 6,
     backgroundColor: colors.border,
     borderRadius: borderRadius.full,
+    overflow: 'hidden',
+    marginBottom: spacing.xs,
   },
-  masteryFill: {
+  continueProgressFill: {
+    width: '42%',
     height: '100%',
+    backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
   },
-  masteryPct: {
-    width: 40,
-    fontSize: typography.fontSizeSm,
-    fontWeight: typography.fontWeightBold,
-    textAlign: 'right',
+  continueProgressText: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textMuted,
+  },
+  quickPracticeRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  quickButton: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  quickButtonEmoji: {
+    fontSize: 26,
+  },
+  quickButtonText: {
+    fontSize: typography.fontSizeXs,
+    color: colors.textSecondary,
+    fontWeight: typography.fontWeightMedium,
+    textAlign: 'center',
   },
 });
