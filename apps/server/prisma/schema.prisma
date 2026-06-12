@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile          UserProfile?
+  sessions         Session[]
+  xpEvents         XPEvent[]
+  streak           Streak?
+  masteryScores    MasteryScore[]
+  conversations    TutorConversation[]
+  studyPlan        StudyPlan?
+  srsCards         SRSCardRecord[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  displayName      String
+  avatarUrl        String?
+  examType         String
+  examDate         DateTime?
+  subjects         String[]
+  xp               Int       @default(0)
+  subscriptionTier String    @default("free")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Topic {
+  id          String    @id @default(cuid())
+  subjectId   String
+  examType    String
+  name        String
+  description String?
+  order       Int
+
+  subtopics   Subtopic[]
+
+  @@map("topics")
+}
+
+model Subtopic {
+  id          String    @id @default(cuid())
+  topicId     String
+  name        String
+  description String?
+  order       Int
+
+  topic         Topic               @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  questions     Question[]
+  flashcards    Flashcard[]
+  masteryScores MasteryScore[]
+  conversations TutorConversation[]
+  srsCards      SRSCardRecord[]
+
+  @@map("subtopics")
+}
+
+model Question {
+  id                 String   @id @default(cuid())
+  type               String   // MCQ | SHORT_ANSWER
+  subtopicId         String
+  text               String
+  options            String[] // for MCQ
+  correctOptionIndex Int?     // for MCQ
+  explanation        String?  // for MCQ
+  sampleAnswer       String?  // for SHORT_ANSWER
+  keywords           String[] // for SHORT_ANSWER
+  difficulty         String
+  examType           String
+  createdAt          DateTime @default(now())
+
+  subtopic          Subtopic          @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  questionAttempts  QuestionAttempt[]
+
+  @@map("questions")
+}
+
+model Flashcard {
+  id         String   @id @default(cuid())
+  subtopicId String
+  front      String
+  back       String
+  tags       String[]
+  examType   String
+  createdAt  DateTime @default(now())
+
+  subtopic Subtopic        @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+  srsCards SRSCardRecord[]
+
+  @@map("flashcards")
+}
+
+model SRSCardRecord {
+  id              String    @id @default(cuid())
+  userId          String
+  flashcardId     String
+  subtopicId      String
+  easeFactor      Float     @default(2.5)
+  interval        Int       @default(0)
+  repetitions     Int       @default(0)
+  lastReviewedAt  DateTime?
+  nextReviewAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  subtopic  Subtopic  @relation(fields: [subtopicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flashcardId])
+  @@map("srs_card_records")
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  userId      String
+  subtopicId  String?
+  topicId     String?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  durationMs  Int       @default(0)
+  xpEarned    Int       @default(0)
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionAttempts QuestionAttempt[]
+
+  @@map("sessions")
+}
+
+model QuestionAttempt {
+  id           String   @id @default(cuid())
+  sessionId    String
+  questionId   String
+  correct      Boolean
+  attemptedAt  DateTime @default(now())
+  timeTakenMs  Int
+
+  session  Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_attempts")
+}
+
+model MasteryScore {
+  id         String   @id @default(cuid())
+  userId     String
+  subjectId  String
+  topicId    String?
+  subtopicId String?
+  score      Float    @default(0)
+  calculatedAt DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subtopic Subtopic? @relation(fields: [subtopicId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, subjectId, topicId, subtopicId])
+  @@map("mastery_scores")
+}
+
+model Streak {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  currentStreak    Int      @default(0)
+  longestStreak    Int      @default(0)
+  lastActivityDate DateTime @default(now())
+  freezesAvailable Int      @default(2)
+  freezesUsed      Int      @default(0)
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+}
+
+model XPEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  amount      Int
+  description String
+  occurredAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("xp_events")
+}
+
+model TutorConversation {
+  id         String    @id @default(cuid())
+  userId     String
+  subtopicId String?
+  topicId    String?
+  startedAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  attemptCount Int     @default(0)
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subtopic Subtopic?      @relation(fields: [subtopicId], references: [id], onDelete: SetNull)
+  messages TutorMessage[]
+
+  @@map("tutor_conversations")
+}
+
+model TutorMessage {
+  id                 String   @id @default(cuid())
+  conversationId     String
+  role               String   // user | assistant | system
+  content            String
+  timestamp          DateTime @default(now())
+  hintLevel          Int?
+  relatedQuestionId  String?
+
+  conversation TutorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("tutor_messages")
+}
+
+model StudyPlan {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  examDate      DateTime?
+  subjects      String[]
+  weeklyMinutes Int       @default(300)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyGoals   DailyGoal[]
+  studySessions StudySession[]
+
+  @@map("study_plans")
+}
+
+model DailyGoal {
+  id                 String   @id @default(cuid())
+  studyPlanId        String
+  date               DateTime
+  targetMinutes      Int
+  targetQuestions    Int
+  completedMinutes   Int      @default(0)
+  completedQuestions Int      @default(0)
+  completed          Boolean  @default(false)
+
+  studyPlan StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([studyPlanId, date])
+  @@map("daily_goals")
+}
+
+model StudySession {
+  id              String   @id @default(cuid())
+  studyPlanId     String
+  date            DateTime
+  subjectId       String
+  topicIds        String[]
+  durationMinutes Int
+  type            String   // lesson | practice | review | mock
+  completed       Boolean  @default(false)
+
+  studyPlan StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+
+  @@map("study_sessions")
+}
