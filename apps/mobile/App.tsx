@@ -1,5 +1,9 @@
 import React from 'react';
+import { enableScreens } from 'react-native-screens';
 import { StatusBar } from 'expo-status-bar';
+
+// Disable native screens on web — they don't render correctly in a browser
+enableScreens(false);
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
